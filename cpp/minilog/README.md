@@ -2,6 +2,11 @@
 
 > [minilog](https://github.com/archibate/minilog)
 
+- abs
+    * X Macro
+    * 怎么封装成单一头文件, ODR
+    * static initialization技巧
+
 ## impl
 
 - 使用`#include <source_location>`这个库, 而不使用`__FUNCTION__`之类的宏。`source_location`有`file_name()`返回文件名, `line()`返回行号等功能。
