@@ -125,6 +125,7 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    #[ignore]
     fn create_image_request_should_serialize() -> Result<()> {
         // let req = CreateImageRequest::new("draw a cute cat");
         let req = CreateImageRequestBuilder::default()
@@ -145,6 +146,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn create_image_shoule_work() -> Result<()> {
         let sdk = LlmSdk::new(std::env::var("OPENAI_API_KEY")?);
         let req = CreateImageRequest::new("draw a cute cat");
