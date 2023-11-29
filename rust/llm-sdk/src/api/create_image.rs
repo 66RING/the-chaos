@@ -10,7 +10,6 @@ pub struct CreateImageRequest {
     #[builder(setter(into))]
     prompt: String,
     /// The model to use for image generation. Only support dall-e-3
-    /// TODO: review derive build. use default() implement
     #[builder(default)]
     model: ImageModel,
     /// The number of images to generate. Must be between 1 and 10. For dall-e-3, only n=1 is supported.
@@ -35,7 +34,6 @@ pub struct CreateImageRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     style: Option<ImageStyle>,
     /// A unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse.
-    /// TODO: into可以自动做into, 如str -> String
     #[builder(default,setter(strip_option, into))]
     #[serde(skip_serializing_if = "Option::is_none")]
     user: Option<String>,
@@ -58,31 +56,33 @@ pub struct ImageObject {
 }
 
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ImageModel {
-    // TODO: review, 特定rename
     #[serde(rename="dall-e-3")]
+    #[default]
     DallE3,
 }
 
-// TODO: review
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")] // TODO: 全部rename, 怎么方便怎么来
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
 pub enum ImageQuality {
+    #[default]
     Standard,
     Hd,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ImageResponseFormat {
+    #[default]
     Url,
     B64Json,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ImageSize {
     #[serde(rename = "1024x1024")]
+    #[default]
     Large,
     #[serde(rename = "1792x1024")]
     LargeWide,
@@ -90,9 +90,10 @@ pub enum ImageSize {
     LargeTall,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ImageStyle {
+    #[default]
     Vivid,
     Natural,
 }
@@ -106,44 +107,10 @@ impl IntoRequest for CreateImageRequest {
 
 impl CreateImageRequest {
     pub fn new(prompt: impl Into<String>) -> Self {
-        // TODO: 使用derive builder快速build
-        // deriver builder自动builder结构体, 然后执行builder模式
         CreateImageRequestBuilder::default()
             .prompt(prompt)
             .build()
             .unwrap()
-    }
-}
-
-impl Default for ImageModel {
-    fn default() -> Self {
-        ImageModel::DallE3
-    }
-}
-
-
-impl Default for ImageQuality {
-    fn default() -> Self {
-        ImageQuality::Standard
-    }
-}
-
-impl Default for ImageResponseFormat {
-    fn default() -> Self {
-        ImageResponseFormat::Url
-    }
-}
-
-
-impl Default for ImageSize {
-    fn default() -> Self {
-        ImageSize::Large
-    }
-}
-
-impl Default for ImageStyle {
-    fn default() -> Self {
-        ImageStyle::Vivid
     }
 }
 
@@ -176,8 +143,7 @@ mod tests {
         );
         Ok(())
     }
-    
-    // TODO: tokio::test的区别, 因为async只能被async runtime调用
+
     #[tokio::test]
     async fn create_image_shoule_work() -> Result<()> {
         let sdk = LlmSdk::new(std::env::var("OPENAI_API_KEY")?);

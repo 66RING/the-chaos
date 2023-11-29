@@ -17,3 +17,4 @@
     - 一个结构内有很多参数, 自己构建new函数再一个一个赋值太麻烦了。可以使用`derive_builder`自动构建, 我们只需要描述好结构体就可以了。
 - `serde`
     * 各种serde技巧, 自动serde json的, 跳过的, 默认的, rename的
+    * 自动snake case等
