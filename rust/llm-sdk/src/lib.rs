@@ -1,11 +1,12 @@
 mod api;
 
 use std::time::Duration;
-// TODO: review
-use anyhow::Result;
+use anyhow::{Result, anyhow};
+use tracing::error;
+use async_trait::async_trait;
 
 use api::{ChatCompletionResponse, CreateImageRequest, CreateImageResponse, ChatCompletionRequest};
-use reqwest::{Client, RequestBuilder};
+use reqwest::{Client, RequestBuilder, Response};
 
 const TIMEOUT: u64 = 30;
 
@@ -30,13 +31,13 @@ impl LlmSdk {
 
     pub async fn chat_completion(&self, req: ChatCompletionRequest) -> Result<ChatCompletionResponse> {
         let req = self.prepare_request(req);
-        let res = req.send().await?;
+        let res = req.send_and_log().await?;
         Ok(res.json::<ChatCompletionResponse>().await?)
     }
 
     pub async fn create_image(&self, req: CreateImageRequest) -> Result<CreateImageResponse> {
         let req = self.prepare_request(req);
-        let res = req.send().await?;
+        let res = req.send_and_log().await?;
         Ok(res.json::<CreateImageResponse>().await?)
     }
 
@@ -49,4 +50,29 @@ impl LlmSdk {
         };
         req.timeout(Duration::from_secs(TIMEOUT))
     }
+}
+
+#[async_trait]
+trait SendAndLog {
+    async fn send_and_log(self) -> Result<Response>;
+}
+
+#[async_trait]
+impl SendAndLog for RequestBuilder {
+    async fn send_and_log(self) -> Result<Response> {
+        let res = self.send().await?;
+        let status = res.status();
+        if status.is_client_error() || status.is_server_error() {
+            let text = res.text().await?;
+            error!("chat_completion error: {}", text);
+            return Err(anyhow!("chat_completion error: {}", text));
+        }
+        Ok(res)
+    }
+}
+
+#[cfg(test)]
+#[ctor::ctor]
+fn init() {
+    tracing_subscriber::fmt::init();
 }
