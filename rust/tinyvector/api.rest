@@ -1,0 +1,20 @@
+http://localhost:3000
+GET /test/get
+
+
+http://localhost:3000
+DELETE /test/delete/10
+
+http://localhost:3000
+PUT /test/put
+{
+    "key1": "value1",
+    "key2": "value2"
+}
+
+http://localhost:3000
+POST /test/post
+{
+    "myName": "66ring",
+    "myAge": 15
+}
