@@ -57,6 +57,7 @@ pub fn normalize(vec: &[f32]) -> Vec<f32> {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ScoreIndex {
     pub score: f32,
     pub index: usize,

@@ -1,20 +1,23 @@
 use crate::similarity::{get_cache_attr, get_distance_fn, normalize, Distance, ScoreIndex};
 use anyhow::{Context, Result};
+use axum::Extension;
 use lazy_static::lazy_static;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{BinaryHeap, HashMap};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Instant;
-use tracing::{debug, info, trace};
+use tokio::sync::RwLock;
+use tracing::{debug, info};
 
 lazy_static! {
     /// The path to the database
     pub static ref STORE_PATH: PathBuf = PathBuf::from("./storage/db");
 }
 
-#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error, Serialize, Deserialize)]
 pub enum DBError {
     /// The table already exists
     #[error("The table already exists")]
@@ -33,6 +36,8 @@ pub enum DBError {
     DimensionMismatch,
 }
 
+pub type DbExtension = Extension<Arc<RwLock<Database>>>;
+
 /// The vector database
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Database {
@@ -50,6 +55,7 @@ pub struct Table {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct EmbeddingRecord {
     /// Value of the embedding.
     pub id: String,
@@ -75,10 +81,16 @@ impl Table {
 
         // Sort the scores by top k binary heap.
         let mut heap = BinaryHeap::new();
+        println!("score len {} top k {}", scores.len(), top_k);
         for score in scores {
+            println!("score {:#?}", score);
+            println!("heap len {:#?}", heap.len());
+
             if heap.len() < top_k {
+                println!("not full");
                 heap.push(score);
             } else {
+                println!("full");
                 if score.score > heap.peek().unwrap().score {
                     heap.pop();
                     heap.push(score);
@@ -86,6 +98,7 @@ impl Table {
             }
         }
 
+        info!("heap size {}", heap.len());
         heap.into_sorted_vec()
             .into_iter()
             .map(|score_index| self.records[score_index.index].clone())
@@ -173,15 +186,17 @@ impl Database {
     }
 
     pub fn query_record(
-        &mut self,
+        &self,
         table_name: String,
-        query_embedding: Vec<f32>,
+        query_embedding: &[f32],
         top_k: usize,
     ) -> Result<Vec<EmbeddingRecord>, DBError> {
+        println!("query record");
         let table = self
             .tables
             .get(&table_name)
             .ok_or(DBError::TableDoesNotExist)?;
+        println!("query record done");
 
         // Check if query embedding has the correct dimension.
         if query_embedding.len() != table.dimension {
@@ -190,12 +205,14 @@ impl Database {
 
         let instant = Instant::now();
         let result = table.top_k_similarity(&query_embedding, top_k);
-        trace!("Query to {table_name} took {:?}", instant.elapsed());
+        info!("Query to {table_name} took {:?}", instant.elapsed());
         Ok(result)
     }
 
-    /// TODO: return the entire data base for debug
-    pub fn get_entire_db() {}
+    /// Return the entire data base for debug.
+    pub fn get_entire_db(&self) -> Result<HashMap<String, Table>, DBError> {
+        Ok(self.tables.clone())
+    }
 
     pub fn zero() -> Self {
         Self {
@@ -225,6 +242,10 @@ impl Database {
         fs::write(STORE_PATH.as_path(), db_data)?;
         Ok(())
     }
+
+    pub fn extension(self) -> DbExtension {
+        Extension(Arc::new(RwLock::new(self)))
+    }
 }
 
 impl Drop for Database {
@@ -246,13 +267,13 @@ mod tests {
         let dimension = 4;
         let top_k = 10;
         let distance = Distance::DotProduct;
-        if let Err(e) = db.query_record(table_name.clone(), vec![1., 2., 3., 4.], top_k) {
+        if let Err(e) = db.query_record(table_name.clone(), &vec![1., 2., 3., 4.], top_k) {
             assert_eq!(e, DBError::TableDoesNotExist);
 
             db.create_table(table_name.clone(), dimension, distance)
                 .unwrap();
             let records = db
-                .query_record(table_name.clone(), vec![1., 2., 3., 4.], top_k)
+                .query_record(table_name.clone(), &vec![1., 2., 3., 4.], top_k)
                 .unwrap();
             assert_eq!(0, records.len());
         }
@@ -267,7 +288,7 @@ mod tests {
         db.insert_record(table_name.clone(), record).unwrap();
 
         let records = db
-            .query_record(table_name.clone(), vec![1., 2., 3., 4.], top_k)
+            .query_record(table_name.clone(), &vec![1., 2., 3., 4.], top_k)
             .unwrap();
         assert_eq!(1, records.len());
         assert_eq!(vec![1., 2., 3., 4.], records[0].embedding);
@@ -279,7 +300,7 @@ mod tests {
         let _ = db.delete_record(table_name.clone(), id);
 
         let records = db
-            .query_record(table_name.clone(), vec![1., 2., 3., 4.], top_k)
+            .query_record(table_name.clone(), &vec![1., 2., 3., 4.], top_k)
             .unwrap();
         assert_eq!(0, records.len());
 
@@ -287,7 +308,7 @@ mod tests {
         let top_k = 10;
         let _ = db.drop_table(table_name.clone());
 
-        let err = db.query_record(table_name.clone(), vec![1., 2., 3., 4.], top_k);
+        let err = db.query_record(table_name.clone(), &vec![1., 2., 3., 4.], top_k);
         assert!(err.is_err());
     }
 
@@ -308,7 +329,7 @@ mod tests {
         let query_embedding = get_ml_embedding();
 
         let records = db
-            .query_record(table_name.clone(), query_embedding, top_k)
+            .query_record(table_name.clone(), &query_embedding, top_k)
             .unwrap();
         assert_eq!(top_k, records.len());
         // assert_eq!(vec![1., 2., 3., 4.], records[0].embedding);
@@ -334,7 +355,7 @@ mod tests {
         let query_embedding = get_cat_embedding();
 
         let records = db
-            .query_record(table_name.clone(), query_embedding, top_k)
+            .query_record(table_name.clone(), &query_embedding, top_k)
             .unwrap();
         assert_eq!(top_k, records.len());
         assert_eq!("Cat", records[0].id);
@@ -360,14 +381,13 @@ mod tests {
         let query_embedding = get_dog_embedding();
 
         let records = db
-            .query_record(table_name.clone(), query_embedding, top_k)
+            .query_record(table_name.clone(), &query_embedding, top_k)
             .unwrap();
         assert_eq!(top_k, records.len());
         assert_eq!("Dog", records[0].id);
         assert_eq!("Cat", records[1].id);
         assert_eq!("OpenAI change the world", records[2].id);
     }
-
 
     #[test]
     fn test_query_ml() {
@@ -386,7 +406,7 @@ mod tests {
         let query_embedding = get_ml_embedding();
 
         let records = db
-            .query_record(table_name.clone(), query_embedding, top_k)
+            .query_record(table_name.clone(), &query_embedding, top_k)
             .unwrap();
         assert_eq!(top_k, records.len());
         assert_eq!("OpenAI change the world", records[0].id);
