@@ -2,7 +2,6 @@ use crate::database::Database;
 use crate::routes::db_handler::DbHandler;
 use crate::routes::test_handler::TestHandler;
 use anyhow::Result;
-use axum::Extension;
 use tracing::info;
 
 pub async fn start() -> Result<()> {

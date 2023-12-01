@@ -23,10 +23,11 @@ http://localhost:3000
 POST /db/create_table
 {
     "table_name": "table2",
-    "dimension": 1536,
-    "distance": "cosine"
+    "dimension": 1536
 }
 
+http://localhost:3000
+GET /db/query_table?table_name=table2
 
 http://localhost:3000
 DELETE /db/drop_table/table2
@@ -1579,12 +1580,14 @@ POST /db/insert_record
 }
 
 http://localhost:3000
-DELETE /db/delete_record/table2/1
+DELETE /db/delete_record/table2/OpenAI%20changed%20the%20world
 
 http://localhost:3000
 POST /db/query_record
 {
     "table_name": "table2",
+    "distance": "cosine",
+    "top_k": 3,
     "query_embedding": [
             -0.040569793,
         -0.004575988,
@@ -3122,8 +3125,7 @@ POST /db/query_record
         -0.018158682,
         -0.02102445,
         0.0051240497
-],
-    "top_k": 3
+]
 }
 
 

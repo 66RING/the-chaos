@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(clippy::all)]
+
 use crate::database::EmbeddingRecord;
 pub fn get_dog_record() -> EmbeddingRecord {
     EmbeddingRecord {

@@ -6,7 +6,6 @@ use crate::{similarity::Distance, database::EmbeddingRecord};
 pub struct CreateTableRequest {
     pub table_name: String,
     pub dimension: usize,
-    pub distance: Distance,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -36,8 +35,14 @@ pub struct QueryRecordRequest {
     pub table_name: String,
     pub query_embedding: Vec<f32>,
     pub top_k: usize,
+    pub distance: Distance,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "snake_case")]
+pub struct QueryTableRequest {
+    pub table_name: String,
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "snake_case")]

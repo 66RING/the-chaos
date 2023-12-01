@@ -1,6 +1,6 @@
 use axum::routing::{delete, get, post, put};
 use axum::Router;
-use tracing::{info, debug};
+use tracing::{info};
 
 use crate::dto::test::{TestPutRequest, TestPostRequest};
 

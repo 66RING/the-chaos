@@ -1,4 +1,4 @@
-use crate::similarity::{get_cache_attr, get_distance_fn, normalize, Distance, ScoreIndex};
+use crate::similarity::{get_distance_fn, Distance, ScoreIndex};
 use anyhow::{Context, Result};
 use axum::Extension;
 use lazy_static::lazy_static;
@@ -48,8 +48,6 @@ pub struct Database {
 pub struct Table {
     /// Dimension of the vectors in the collection
     pub dimension: usize,
-    /// Distance metric used for querying
-    pub distance: Distance,
     /// Embeddings in the collection
     pub records: Vec<EmbeddingRecord>,
 }
@@ -64,9 +62,15 @@ pub struct EmbeddingRecord {
 }
 
 impl Table {
-    pub fn top_k_similarity(&self, query_embedding: &[f32], top_k: usize) -> Vec<EmbeddingRecord> {
-        let memo_attr = get_cache_attr(self.distance, query_embedding);
-        let distance_fn = get_distance_fn(self.distance);
+    #[allow(dead_code)]
+    pub fn compute_score(distance: Distance, v1: &[f32], v2: &[f32]) -> f32 {
+        let distance_fn = get_distance_fn(distance);
+
+        distance_fn(v1, v2)
+    }
+
+    pub fn top_k_similarity(&self, query_embedding: &[f32], top_k: usize, distance: Distance) -> Vec<EmbeddingRecord> {
+        let distance_fn = get_distance_fn(distance);
 
         // Compute score and corresponding index for each record.
         let scores = self
@@ -74,27 +78,19 @@ impl Table {
             .par_iter()
             .enumerate()
             .map(|(index, record)| {
-                let score = distance_fn(&record.embedding, query_embedding, memo_attr);
+                let score = distance_fn(&record.embedding, query_embedding);
                 ScoreIndex { score, index }
             })
             .collect::<Vec<_>>();
 
         // Sort the scores by top k binary heap.
         let mut heap = BinaryHeap::new();
-        println!("score len {} top k {}", scores.len(), top_k);
         for score in scores {
-            println!("score {:#?}", score);
-            println!("heap len {:#?}", heap.len());
-
             if heap.len() < top_k {
-                println!("not full");
                 heap.push(score);
-            } else {
-                println!("full");
-                if score.score > heap.peek().unwrap().score {
-                    heap.pop();
-                    heap.push(score);
-                }
+            } else if score.score > heap.peek().unwrap().score {
+                heap.pop();
+                heap.push(score);
             }
         }
 
@@ -111,7 +107,6 @@ impl Database {
         &mut self,
         table_name: String,
         dimension: usize,
-        distance: Distance,
     ) -> Result<(), DBError> {
         // Check if table already exists.
         if self.tables.contains_key(&table_name) {
@@ -121,7 +116,6 @@ impl Database {
         // Create new table.
         let table = Table {
             dimension,
-            distance,
             records: Vec::new(),
         };
         info!("Create table {:#?}", table);
@@ -132,7 +126,7 @@ impl Database {
     pub fn insert_record(
         &mut self,
         table_name: String,
-        mut record: EmbeddingRecord,
+        record: EmbeddingRecord,
     ) -> Result<(), DBError> {
         // Check if table exists.
         let table = self
@@ -148,11 +142,6 @@ impl Database {
         // Check if record has the correct dimension.
         if record.embedding.len() != table.dimension {
             return Err(DBError::DimensionMismatch);
-        }
-
-        // Normalize the vector if the distance metric is cosine, so we can use dot product later
-        if table.distance == Distance::Cosine {
-            record.embedding = normalize(&record.embedding);
         }
 
         table.records.push(record);
@@ -190,13 +179,12 @@ impl Database {
         table_name: String,
         query_embedding: &[f32],
         top_k: usize,
+        distance: Distance,
     ) -> Result<Vec<EmbeddingRecord>, DBError> {
-        println!("query record");
         let table = self
             .tables
             .get(&table_name)
             .ok_or(DBError::TableDoesNotExist)?;
-        println!("query record done");
 
         // Check if query embedding has the correct dimension.
         if query_embedding.len() != table.dimension {
@@ -204,7 +192,7 @@ impl Database {
         }
 
         let instant = Instant::now();
-        let result = table.top_k_similarity(&query_embedding, top_k);
+        let result = table.top_k_similarity(query_embedding, top_k, distance);
         info!("Query to {table_name} took {:?}", instant.elapsed());
         Ok(result)
     }
@@ -212,6 +200,11 @@ impl Database {
     /// Return the entire data base for debug.
     pub fn get_entire_db(&self) -> Result<HashMap<String, Table>, DBError> {
         Ok(self.tables.clone())
+    }
+
+    /// Return table.
+    pub fn get_table(&self, table_name: String) -> Result<Table, DBError> {
+        self.tables.get(&table_name).ok_or(DBError::TableDoesNotExist).map(|t| t.clone())
     }
 
     pub fn zero() -> Self {
@@ -267,13 +260,13 @@ mod tests {
         let dimension = 4;
         let top_k = 10;
         let distance = Distance::DotProduct;
-        if let Err(e) = db.query_record(table_name.clone(), &vec![1., 2., 3., 4.], top_k) {
+        if let Err(e) = db.query_record(table_name.clone(), &vec![1., 2., 3., 4.], top_k, distance) {
             assert_eq!(e, DBError::TableDoesNotExist);
 
-            db.create_table(table_name.clone(), dimension, distance)
+            db.create_table(table_name.clone(), dimension)
                 .unwrap();
             let records = db
-                .query_record(table_name.clone(), &vec![1., 2., 3., 4.], top_k)
+                .query_record(table_name.clone(), &vec![1., 2., 3., 4.], top_k, distance)
                 .unwrap();
             assert_eq!(0, records.len());
         }
@@ -288,7 +281,7 @@ mod tests {
         db.insert_record(table_name.clone(), record).unwrap();
 
         let records = db
-            .query_record(table_name.clone(), &vec![1., 2., 3., 4.], top_k)
+            .query_record(table_name.clone(), &vec![1., 2., 3., 4.], top_k, distance)
             .unwrap();
         assert_eq!(1, records.len());
         assert_eq!(vec![1., 2., 3., 4.], records[0].embedding);
@@ -300,7 +293,7 @@ mod tests {
         let _ = db.delete_record(table_name.clone(), id);
 
         let records = db
-            .query_record(table_name.clone(), &vec![1., 2., 3., 4.], top_k)
+            .query_record(table_name.clone(), &vec![1., 2., 3., 4.], top_k, distance)
             .unwrap();
         assert_eq!(0, records.len());
 
@@ -308,7 +301,7 @@ mod tests {
         let top_k = 10;
         let _ = db.drop_table(table_name.clone());
 
-        let err = db.query_record(table_name.clone(), &vec![1., 2., 3., 4.], top_k);
+        let err = db.query_record(table_name.clone(), &vec![1., 2., 3., 4.], top_k, distance);
         assert!(err.is_err());
     }
 
@@ -320,7 +313,7 @@ mod tests {
         let dimension = 1536;
         let top_k = 2;
         let distance = Distance::Cosine;
-        let _ = db.create_table(table_name.clone(), dimension, distance);
+        let _ = db.create_table(table_name.clone(), dimension);
 
         let _ = db.insert_record(table_name.clone(), get_dog_record());
         let _ = db.insert_record(table_name.clone(), get_cat_record());
@@ -329,7 +322,7 @@ mod tests {
         let query_embedding = get_ml_embedding();
 
         let records = db
-            .query_record(table_name.clone(), &query_embedding, top_k)
+            .query_record(table_name.clone(), &query_embedding, top_k, distance)
             .unwrap();
         assert_eq!(top_k, records.len());
         // assert_eq!(vec![1., 2., 3., 4.], records[0].embedding);
@@ -339,14 +332,14 @@ mod tests {
     }
 
     #[test]
-    fn test_query_Cat() {
+    fn test_query_cat() {
         // Create database if not exist.
         let mut db = Database::load_from_file().unwrap();
         let table_name = "table2".to_string();
         let dimension = 1536;
         let top_k = 3;
         let distance = Distance::Cosine;
-        let _ = db.create_table(table_name.clone(), dimension, distance);
+        let _ = db.create_table(table_name.clone(), dimension);
 
         let _ = db.insert_record(table_name.clone(), get_dog_record());
         let _ = db.insert_record(table_name.clone(), get_cat_record());
@@ -355,14 +348,13 @@ mod tests {
         let query_embedding = get_cat_embedding();
 
         let records = db
-            .query_record(table_name.clone(), &query_embedding, top_k)
+            .query_record(table_name.clone(), &query_embedding, top_k, distance)
             .unwrap();
         assert_eq!(top_k, records.len());
         assert_eq!("Cat", records[0].id);
         assert_eq!("Dog", records[1].id);
         assert_eq!("OpenAI change the world", records[2].id);
     }
-
 
     #[test]
     fn test_query_dog() {
@@ -372,7 +364,7 @@ mod tests {
         let dimension = 1536;
         let top_k = 3;
         let distance = Distance::Cosine;
-        let _ = db.create_table(table_name.clone(), dimension, distance);
+        let _ = db.create_table(table_name.clone(), dimension);
 
         let _ = db.insert_record(table_name.clone(), get_dog_record());
         let _ = db.insert_record(table_name.clone(), get_cat_record());
@@ -381,7 +373,7 @@ mod tests {
         let query_embedding = get_dog_embedding();
 
         let records = db
-            .query_record(table_name.clone(), &query_embedding, top_k)
+            .query_record(table_name.clone(), &query_embedding, top_k, distance)
             .unwrap();
         assert_eq!(top_k, records.len());
         assert_eq!("Dog", records[0].id);
@@ -397,7 +389,7 @@ mod tests {
         let dimension = 1536;
         let top_k = 3;
         let distance = Distance::Cosine;
-        let _ = db.create_table(table_name.clone(), dimension, distance);
+        let _ = db.create_table(table_name.clone(), dimension);
 
         let _ = db.insert_record(table_name.clone(), get_dog_record());
         let _ = db.insert_record(table_name.clone(), get_cat_record());
@@ -406,11 +398,36 @@ mod tests {
         let query_embedding = get_ml_embedding();
 
         let records = db
-            .query_record(table_name.clone(), &query_embedding, top_k)
+            .query_record(table_name.clone(), &query_embedding, top_k, distance)
             .unwrap();
         assert_eq!(top_k, records.len());
         assert_eq!("OpenAI change the world", records[0].id);
         assert_eq!("Cat", records[1].id);
         assert_eq!("Dog", records[2].id);
     }
+
+    // similarity compute test
+    #[test]
+    fn test_consine_similarity_compute() {
+        let distance = Distance::Cosine;
+        let v1 = vec![1., 2., 3., 4.];
+        let v2 = vec![5., 6., 7., 8.];
+        let score = Table::compute_score(distance, &v1 , &v2);
+
+        // assert two float number very close.
+        assert!((score - 0.9688639316269662).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_euclidean_similarity_compute() {
+        let distance = Distance::Euclidean;
+        let v1 = vec![1., 2., 3., 4.];
+        let v2 = vec![5., 6., 7., 8.];
+        let score = Table::compute_score(distance, &v1 , &v2);
+
+        // assert two float number very close.
+        assert_eq!(score, 8.);
+    }
 }
+
+

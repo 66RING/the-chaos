@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::database::{DBError, Database, DbExtension, EmbeddingRecord, Table};
+use crate::database::{DBError, DbExtension, EmbeddingRecord, Table};
 use crate::dto::*;
 use crate::routes::helper::*;
 use axum::extract::{Json, Path, Query};
@@ -23,6 +23,7 @@ impl DbHandler {
             )
             .route("/query_record", post(Self::query_record))
             .route("/get_entire_db", get(Self::get_entire_db))
+            .route("/query_table", get(Self::query_table))
     }
 
     async fn create_table(
@@ -32,7 +33,7 @@ impl DbHandler {
         info!("Create table: {:?}", data);
         let res = {
             let mut db = db.write().await;
-            db.create_table(data.table_name, data.dimension, data.distance)
+            db.create_table(data.table_name, data.dimension)
         };
 
         if res.is_err() {
@@ -98,7 +99,7 @@ impl DbHandler {
         info!("Query record: table name: {:?}, top k: {:?}", data.table_name, data.top_k);
         let res = {
             let db = db.read().await;
-            db.query_record(data.table_name, &data.query_embedding, data.top_k)
+            db.query_record(data.table_name, &data.query_embedding, data.top_k, data.distance)
         };
 
         if res.is_err() {
@@ -113,6 +114,23 @@ impl DbHandler {
         let res = {
             let db = db.read().await;
             db.get_entire_db()
+        };
+
+        if res.is_err() {
+            return (StatusCode::OK, Json(generate_base_response(res, false, 0)));
+        }
+
+        (StatusCode::OK, Json(generate_base_response(res, true, 0)))
+    }
+
+    /// Expect http query like this: http://localhost:3000/query_table?table_name=table1
+    async fn query_table(
+        Extension(db): DbExtension,
+        Query(data): Query<QueryTableRequest>,
+    ) -> (StatusCode, Json<BaseHttpResponse<Result<Table, DBError>>>) {
+        let res = {
+            let db = db.read().await;
+            db.get_table(data.table_name)
         };
 
         if res.is_err() {

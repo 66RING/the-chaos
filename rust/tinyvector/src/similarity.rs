@@ -9,41 +9,28 @@ pub enum Distance {
     DotProduct,
 }
 
-// TODO: review what is attr use for.
-pub fn get_cache_attr(metric: Distance, vec: &[f32]) -> f32 {
-    match metric {
-        // Dot product doesn't allow any caching
-        Distance::DotProduct | Distance::Euclidean => 0.0,
-        // Precompute the magnitude of the vector
-        Distance::Cosine => vec.iter().map(|&x| x.powi(2)).sum::<f32>().sqrt(),
-    }
-}
-
-// TODO: review
-pub fn get_distance_fn(distance: Distance) -> fn(&[f32], &[f32], f32) -> f32 {
+pub fn get_distance_fn(distance: Distance) -> fn(&[f32], &[f32]) -> f32 {
     match distance {
         Distance::Euclidean => euclidean,
-        Distance::Cosine | Distance::DotProduct => dot_product,
+        Distance::Cosine => cosine,
+        Distance::DotProduct => dot_product,
     }
 }
 
-/// TODO: review
-fn euclidean(a: &[f32], b: &[f32], a_sum_squares: f32) -> f32 {
-    let mut cross_terms = 0.0;
-    let mut b_sum_squares = 0.0;
-
-    for (i, j) in a.iter().zip(b) {
-        cross_terms += i * j;
-        b_sum_squares += j.powi(2);
-    }
-
-    2.0f32
-        .mul_add(-cross_terms, a_sum_squares + b_sum_squares)
-        .max(0.0)
-        .sqrt()
+fn euclidean(a: &[f32], b: &[f32]) -> f32 {
+    a.iter().zip(b).fold(0.0, |acc, (x, y)| {
+        let diff = x - y;
+        acc + diff * diff
+    }).sqrt()
 }
 
-fn dot_product(a: &[f32], b: &[f32], _: f32) -> f32 {
+fn dot_product(a: &[f32], b: &[f32]) -> f32 {
+    a.iter().zip(b).fold(0.0, |acc, (x, y)| acc + x * y)
+}
+
+fn cosine(a: &[f32], b: &[f32]) -> f32 {
+    let a = normalize(a);
+    let b = normalize(b);
     a.iter().zip(b).fold(0.0, |acc, (x, y)| acc + x * y)
 }
 
@@ -71,6 +58,7 @@ impl PartialEq for ScoreIndex {
 
 impl Eq for ScoreIndex {}
 
+#[allow(clippy::non_canonical_partial_ord_impl)]
 impl PartialOrd for ScoreIndex {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         // The comparison is intentionally reversed here to make the heap a min-heap
