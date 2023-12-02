@@ -1,7 +1,6 @@
 use crate::IntoRequest;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
-use crate::ToSchema;
 
 #[derive(Serialize, Debug, Clone, Builder)]
 pub struct ChatCompletionRequest {
@@ -261,10 +260,9 @@ pub enum FinishReason {
 }
 
 impl IntoRequest for ChatCompletionRequest {
-    fn into_request(self, client: reqwest::Client) -> crate::RequestBuilder {
-        client
-            .post("https://api.openai.com/v1/chat/completions")
-            .json(&self)
+    fn into_request(self, base_url: &str, client: reqwest::Client) -> crate::RequestBuilder {
+        let url = format!("{}/chat/completions", base_url);
+        client.post(url).json(&self)
     }
 }
 
@@ -293,7 +291,7 @@ impl ChatCompletionMessage {
 
 #[cfg(test)]
 mod tests {
-    use crate::LlmSdk;
+    use crate::SDK;
     use anyhow::Result;
     use schemars::{schema_for, JsonSchema};
 
@@ -317,18 +315,14 @@ mod tests {
     /// test tool functoin
     fn get_weather_forecast(args: GetWeatherArgs) -> GetWeatherResponse {
         match args.unit {
-            TemperatureUnit::Celsius => {
-                GetWeatherResponse {
-                    temperature: 22.2,
-                    unit: TemperatureUnit::Celsius,
-                }
-            }
-            TemperatureUnit::Fahrenheit => {
-                GetWeatherResponse {
-                    temperature: 72.0,
-                    unit: TemperatureUnit::Fahrenheit,
-                }
-            }
+            TemperatureUnit::Celsius => GetWeatherResponse {
+                temperature: 22.2,
+                unit: TemperatureUnit::Celsius,
+            },
+            TemperatureUnit::Fahrenheit => GetWeatherResponse {
+                temperature: 72.0,
+                unit: TemperatureUnit::Fahrenheit,
+            },
         }
     }
 
@@ -344,7 +338,7 @@ mod tests {
     }
 
     impl Tool {
-        pub fn new_function<T: ToSchema> (
+        pub fn new_function<T: ToSchema>(
             name: impl Into<String>,
             description: impl Into<String>,
         ) -> Self {
@@ -387,7 +381,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn tool_choice_serialize_auto_should_work() {
         let req = ChatCompletionRequestBuilder::default()
             .tool_choice(ToolChoice::Auto)
@@ -407,7 +400,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn tool_choice_serialize_should_work() {
         let mut req = get_simple_chatcompletion_request();
         req.tool_choice = Some(ToolChoice::Auto);
@@ -432,11 +424,9 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn simple_chat_completion_should_work() -> Result<()> {
-        let sdk = LlmSdk::new(std::env::var("OPENAI_API_KEY")?);
         let req = get_simple_chatcompletion_request();
-        let res = sdk.chat_completion(req).await?;
+        let res = SDK.chat_completion(req).await?;
         assert_eq!(res.model, ChatCompletionModel::Gpt3Turbo);
         assert_eq!(res.object, "chat.completion");
         assert_eq!(res.choices.len(), 1);
@@ -520,9 +510,8 @@ mod tests {
 
     #[tokio::test]
     async fn chat_completion_with_tools_should_work() -> Result<()> {
-        let sdk = LlmSdk::new(std::env::var("OPENAI_API_KEY")?);
         let req = get_tool_completion_request();
-        let res = sdk.chat_completion(req).await?;
+        let res = SDK.chat_completion(req).await?;
         assert_eq!(res.model, ChatCompletionModel::Gpt3Turbo);
         assert_eq!(res.object, "chat.completion");
         assert_eq!(res.choices.len(), 1);

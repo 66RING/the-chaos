@@ -1,6 +1,6 @@
 use derive_builder::Builder;
 use reqwest::{Client, RequestBuilder};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::IntoRequest;
 
@@ -70,10 +70,9 @@ impl CreateSpeechRequest {
 }
 
 impl IntoRequest for CreateSpeechRequest {
-    fn into_request(self, client: Client) -> RequestBuilder {
-        client
-            .post("https://api.openai.com/v1/audio/speech")
-            .json(&self)
+    fn into_request(self, base_url: &str, client: Client) -> RequestBuilder {
+        let url = format!("{}/audio/speech", base_url);
+        client.post(url).json(&self)
     }
 }
 
@@ -82,13 +81,13 @@ mod tests {
     use std::fs;
 
     use super::*;
+    use crate::SDK;
     use anyhow::Result;
 
     #[tokio::test]
     async fn speech_should_work() -> Result<()> {
-        let sdk = crate::LlmSdk::new(std::env::var("OPENAI_API_KEY")?);
         let req = CreateSpeechRequest::new("Hello, world!");
-        let res = sdk.create_speech(req).await?;
+        let res = SDK.create_speech(req).await?;
 
         fs::write("/tmp/llm-sdk/speech.mp3", res)?;
 

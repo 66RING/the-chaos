@@ -8,8 +8,9 @@ use std::time::Duration;
 use tracing::error;
 
 use api::{
-    ChatCompletionRequest, ChatCompletionResponse, CreateImageRequest, CreateImageResponse,
-    CreateSpeechRequest, CreateTranscriptionResponse, CreateWhisperRequest, WhisperResponseFormat, CreateEmbeddingResponse, CreateEmbeddingRequest,
+    ChatCompletionRequest, ChatCompletionResponse, CreateEmbeddingRequest, CreateEmbeddingResponse,
+    CreateImageRequest, CreateImageResponse, CreateSpeechRequest, CreateTranscriptionResponse,
+    CreateWhisperRequest, WhisperResponseFormat,
 };
 use reqwest::{Client, RequestBuilder, Response};
 
@@ -18,18 +19,20 @@ const TIMEOUT: u64 = 30;
 #[derive(Debug)]
 pub struct LlmSdk {
     // pub in this crate only
+    pub(crate) base_url: String,
     pub(crate) token: String,
     pub(crate) client: Client,
 }
 
 pub trait IntoRequest {
-    fn into_request(self, client: Client) -> RequestBuilder;
+    fn into_request(self, base_url: &str, client: Client) -> RequestBuilder;
 }
 
 impl LlmSdk {
-    pub fn new(token: String) -> Self {
+    pub fn new(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         Self {
-            token,
+            base_url: base_url.into(),
+            token: token.into(),
             client: Client::new(),
         }
     }
@@ -72,14 +75,17 @@ impl LlmSdk {
         Ok(ret)
     }
 
-    pub async fn create_embedding(&self, req: CreateEmbeddingRequest) -> Result<CreateEmbeddingResponse> {
+    pub async fn create_embedding(
+        &self,
+        req: CreateEmbeddingRequest,
+    ) -> Result<CreateEmbeddingResponse> {
         let req = self.prepare_request(req);
         let res = req.send_and_log().await?;
         Ok(res.json::<CreateEmbeddingResponse>().await?)
     }
 
     fn prepare_request(&self, req: impl IntoRequest) -> RequestBuilder {
-        let req = req.into_request(self.client.clone());
+        let req = req.into_request(&self.base_url, self.client.clone());
         let req = if self.token.is_empty() {
             req
         } else {
@@ -122,4 +128,12 @@ impl<T: JsonSchema> ToSchema for T {
 #[ctor::ctor]
 fn init() {
     tracing_subscriber::fmt::init();
+}
+
+#[cfg(test)]
+lazy_static::lazy_static! {
+    pub static ref SDK: LlmSdk = LlmSdk::new(
+        "https://api.openai.com/v1",
+        std::env::var("OPENAI_API_KEY").unwrap(),
+    );
 }

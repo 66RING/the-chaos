@@ -100,21 +100,19 @@ impl CreateWhisperRequest {
             form
         };
 
-        let form = if let Some(temperature) = self.temperature {
+        if let Some(temperature) = self.temperature {
             form.text("temperature", temperature.to_string())
         } else {
             form
-        };
-
-        form
+        }
     }
 }
 
 impl IntoRequest for CreateWhisperRequest {
-    fn into_request(self, client: Client) -> RequestBuilder {
+    fn into_request(self, base_url: &str, client: Client) -> RequestBuilder {
         let url = match self.request_type {
-            WhisperRequestType::Transcription => "https://api.openai.com/v1/audio/transcriptions",
-            WhisperRequestType::Translation => "https://api.openai.com/v1/audio/translations",
+            WhisperRequestType::Transcription => format!("{}/audio/transcriptions", base_url),
+            WhisperRequestType::Translation => format!("{}/audio/translations", base_url),
         };
         client.post(url).multipart(self.into_form())
     }
@@ -131,21 +129,20 @@ mod tests {
     use std::fs;
 
     use super::*;
+    use crate::SDK;
     use anyhow::Result;
 
     #[tokio::test]
     async fn transcription_should_work() -> Result<()> {
-        let sdk = crate::LlmSdk::new(std::env::var("OPENAI_API_KEY")?);
         let data = fs::read("/tmp/llm-sdk/speech.mp3")?;
         let req = CreateWhisperRequest::transcription(data);
-        let res = sdk.create_whisper(req).await?;
-        assert_eq!(res.text, "Hello, world.");
+        let res = SDK.create_whisper(req).await?;
+        assert_eq!(res.text, "{\n  \"text\": \"Hello, world.\"\n}");
         Ok(())
     }
 
     #[tokio::test]
     async fn transcription_format_should_work() -> Result<()> {
-        let sdk = crate::LlmSdk::new(std::env::var("OPENAI_API_KEY")?);
         let data = fs::read("/tmp/llm-sdk/speech.mp3")?;
         let req = CreateWhisperRequestBuilder::default()
             .file(data)
@@ -153,21 +150,20 @@ mod tests {
             .request_type(WhisperRequestType::Transcription)
             .build()?;
 
-        let res = sdk.create_whisper(req).await?;
+        let res = SDK.create_whisper(req).await?;
         assert_eq!(res.text, "Hello, world.\n");
         Ok(())
     }
 
     #[tokio::test]
     async fn translation_should_work() -> Result<()> {
-        let sdk = crate::LlmSdk::new(std::env::var("OPENAI_API_KEY")?);
         let data = fs::read("/tmp/llm-sdk/chinese.mp3")?;
         let req = CreateWhisperRequestBuilder::default()
             .file(data)
             .request_type(WhisperRequestType::Translation)
             .build()?;
 
-        let res = sdk.create_whisper(req).await?;
+        let res = SDK.create_whisper(req).await?;
         assert_eq!(res.text, "{\n  \"text\": \"The red scarf hangs on the chest, the motherland is always in my heart.\"\n}");
         Ok(())
     }
