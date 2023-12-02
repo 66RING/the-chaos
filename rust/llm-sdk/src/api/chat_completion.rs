@@ -82,10 +82,21 @@ pub enum ToolChoice {
     #[default]
     None,
     Auto,
-    // TODO: we need something like this: #[serde(tag = "type", content = "function")]
-    Function {
-        name: String,
-    },
+    #[serde(untagged)]
+    Function(FunctionObject), 
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub struct FunctionObject {
+    r#type: String,
+    function: FunctionObjectName,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub struct FunctionObjectName {
+    name: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -293,10 +304,12 @@ impl ChatCompletionMessage {
 mod tests {
     use crate::SDK;
     use anyhow::Result;
-    use schemars::{schema_for, JsonSchema};
+    use schemars::JsonSchema;
+    use crate::ToSchema;
 
     use super::*;
 
+    #[allow(dead_code)]
     #[derive(Debug, Clone, JsonSchema, Deserialize)]
     pub struct GetWeatherArgs {
         /// The city to get the weather forecast for.
@@ -326,12 +339,14 @@ mod tests {
         }
     }
 
+    #[allow(dead_code)]
     #[derive(Debug, Clone)]
     struct GetWeatherResponse {
         temperature: f32,
         unit: TemperatureUnit,
     }
 
+    #[allow(dead_code)]
     #[derive(Debug, JsonSchema, Deserialize)]
     struct GetMoodArgs {
         name: String,
@@ -355,12 +370,14 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn tool_choice_serialize_function_should_work() {
         let req = ChatCompletionRequestBuilder::default()
-            .tool_choice(ToolChoice::Function {
-                name: "my_function".to_string(),
-            })
+            .tool_choice(ToolChoice::Function(FunctionObject {
+                r#type: "function".into(),
+                function: FunctionObjectName {
+                    name: "my_function".into(),
+                },
+            }))
             .messages(vec![])
             .build()
             .unwrap();
@@ -369,6 +386,7 @@ mod tests {
         assert_eq!(
             json,
             serde_json::json!({
+              "model": "gpt-3.5-turbo-1106",
               "tool_choice": {
                 "type": "function",
                 "function": {
