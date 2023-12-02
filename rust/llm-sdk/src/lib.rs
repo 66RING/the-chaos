@@ -1,17 +1,13 @@
 mod api;
 
+pub use api::*;
+
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
 use schemars::{schema_for, JsonSchema};
 use std::time::Duration;
 use tracing::error;
-
-use api::{
-    ChatCompletionRequest, ChatCompletionResponse, CreateEmbeddingRequest, CreateEmbeddingResponse,
-    CreateImageRequest, CreateImageResponse, CreateSpeechRequest, CreateTranscriptionResponse,
-    CreateWhisperRequest, WhisperResponseFormat,
-};
 use reqwest::{Client, RequestBuilder, Response};
 
 const TIMEOUT: u64 = 30;
