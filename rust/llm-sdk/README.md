@@ -8,9 +8,10 @@
     * clippy
     * `derive_builder`
         + `#[builder(deault, setter(into))]`
+        + default自动调用default trait, 或者自定义default = xxx
     * `#[serde(rename_all="snake_case")]`, `#[serde(rename = "XXX")]`
     * 设计模式
-        + builder pattern
+        + builder pattern: 可以使用derive builder快速实现
 
 ## create image
 
@@ -74,6 +75,9 @@ pub trait ToSchema: JsonSchema {
 }
 ```
 
+## Speech
+
+> 语音
 
 
 

@@ -1,12 +1,13 @@
 mod api;
 
-use std::time::Duration;
+use std::{time::Duration};
+use bytes::Bytes;
 use anyhow::{Result, anyhow};
 use schemars::{JsonSchema, schema_for};
 use tracing::error;
 use async_trait::async_trait;
 
-use api::{ChatCompletionResponse, CreateImageRequest, CreateImageResponse, ChatCompletionRequest};
+use api::{ChatCompletionResponse, CreateImageRequest, CreateImageResponse, ChatCompletionRequest, CreateSpeechRequest};
 use reqwest::{Client, RequestBuilder, Response};
 
 const TIMEOUT: u64 = 30;
@@ -40,6 +41,12 @@ impl LlmSdk {
         let req = self.prepare_request(req);
         let res = req.send_and_log().await?;
         Ok(res.json::<CreateImageResponse>().await?)
+    }
+
+    pub async fn create_speech(&self, req: CreateSpeechRequest) -> Result<Bytes> {
+        let req = self.prepare_request(req);
+        let res = req.send_and_log().await?;
+        Ok(res.bytes().await?)
     }
 
     fn prepare_request(&self, req: impl IntoRequest) -> RequestBuilder {
