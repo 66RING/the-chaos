@@ -103,4 +103,35 @@ pub trait ToSchema: JsonSchema {
     * untagged: 不让再添加一层
 
 
+## retry
+
+添加重试中间件
+
+这种web框架的中间件都相当于一个gate, 用于决定走这个中间件还是直接next。所以handle接口方法就是有个next用于决定是否往下走。
+
+```rust
+impl Middleware for RetryMiddleware {
+    async fn handle(
+        &self,
+        req: Request,
+        extensions: &mut Extensions,
+        next: Next<'_>,
+    ) -> Result<Response>;
+}
+```
+
+具体这里的可以`Request`, `Extensions`, `Next`都是什么, 可以rust doc里查看source, 看一个源码use的哪些crate, cv一下
+
+### crate
+
+- `reqwest-retry`
+- `reqwest-middleware`
+- `reqwest-tracing`
+- impl trait技巧: rust doc里查看source, 看一个源码use的哪些crate, cv一下
+
+
+
+
+
+
 

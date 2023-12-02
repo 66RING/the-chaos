@@ -1,5 +1,5 @@
 use derive_builder::Builder;
-use reqwest::{Client, RequestBuilder};
+use reqwest_middleware::{ClientWithMiddleware, RequestBuilder};
 use serde::Serialize;
 
 use crate::IntoRequest;
@@ -70,7 +70,7 @@ impl CreateSpeechRequest {
 }
 
 impl IntoRequest for CreateSpeechRequest {
-    fn into_request(self, base_url: &str, client: Client) -> RequestBuilder {
+    fn into_request(self, base_url: &str, client: ClientWithMiddleware) -> RequestBuilder {
         let url = format!("{}/audio/speech", base_url);
         client.post(url).json(&self)
     }

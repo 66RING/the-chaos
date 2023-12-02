@@ -1,6 +1,6 @@
 use derive_builder::Builder;
 use reqwest::multipart::{Form, Part};
-use reqwest::{Client, RequestBuilder};
+use reqwest_middleware::{ClientWithMiddleware, RequestBuilder};
 use serde::Deserialize;
 use strum::{Display, EnumString};
 
@@ -109,7 +109,7 @@ impl CreateWhisperRequest {
 }
 
 impl IntoRequest for CreateWhisperRequest {
-    fn into_request(self, base_url: &str, client: Client) -> RequestBuilder {
+    fn into_request(self, base_url: &str, client: ClientWithMiddleware) -> RequestBuilder {
         let url = match self.request_type {
             WhisperRequestType::Transcription => format!("{}/audio/transcriptions", base_url),
             WhisperRequestType::Translation => format!("{}/audio/translations", base_url),

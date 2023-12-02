@@ -1,14 +1,19 @@
 mod api;
+mod middleware;
 
 pub use api::*;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
+use middleware::RetryMiddleware;
+use reqwest::Response;
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, RequestBuilder};
+use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
+use reqwest_tracing::TracingMiddleware;
 use schemars::{schema_for, JsonSchema};
 use std::time::Duration;
 use tracing::error;
-use reqwest::{Client, RequestBuilder, Response};
 
 const TIMEOUT: u64 = 30;
 
@@ -17,19 +22,28 @@ pub struct LlmSdk {
     // pub in this crate only
     pub(crate) base_url: String,
     pub(crate) token: String,
-    pub(crate) client: Client,
+    pub(crate) client: ClientWithMiddleware,
 }
 
 pub trait IntoRequest {
-    fn into_request(self, base_url: &str, client: Client) -> RequestBuilder;
+    fn into_request(self, base_url: &str, client: ClientWithMiddleware) -> RequestBuilder;
 }
 
 impl LlmSdk {
-    pub fn new(base_url: impl Into<String>, token: impl Into<String>) -> Self {
+    pub fn new(base_url: impl Into<String>, token: impl Into<String>, max_retries: u32) -> Self {
+        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(max_retries);
+        let m = RetryTransientMiddleware::new_with_policy(retry_policy);
+        let client = ClientBuilder::new(reqwest::Client::new())
+            // Trace HTTP requests. See the tracing crate to make use of these traces.
+            .with(TracingMiddleware::default())
+            // Retry failed requests.
+            .with(RetryMiddleware::from(m))
+            .build();
+
         Self {
             base_url: base_url.into(),
             token: token.into(),
-            client: Client::new(),
+            client,
         }
     }
 
@@ -131,5 +145,6 @@ lazy_static::lazy_static! {
     pub static ref SDK: LlmSdk = LlmSdk::new(
         "https://api.openai.com/v1",
         std::env::var("OPENAI_API_KEY").unwrap(),
+        3,
     );
 }

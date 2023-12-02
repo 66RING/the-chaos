@@ -1,5 +1,5 @@
 use derive_builder::Builder;
-use reqwest::{Client, RequestBuilder};
+use reqwest_middleware::{ClientWithMiddleware, RequestBuilder};
 use serde::{Deserialize, Serialize};
 
 use crate::IntoRequest;
@@ -109,7 +109,7 @@ impl From<&[String]> for EmbeddingInput {
 }
 
 impl IntoRequest for CreateEmbeddingRequest {
-    fn into_request(self, base_url: &str, client: Client) -> RequestBuilder {
+    fn into_request(self, base_url: &str, client: ClientWithMiddleware) -> RequestBuilder {
         let url = format!("{}/embeddings", base_url);
         client.post(url).json(&self)
     }
