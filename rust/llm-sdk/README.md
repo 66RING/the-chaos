@@ -91,9 +91,8 @@ pub trait ToSchema: JsonSchema {
 
 ### crate
 
-- Strum
-    * TODO
-        + 为什么要用strum
+- Strum: 把enum转string
+    * 为什么要用strum: 因为serde对单个字段的转换不方便也不方便直接转换成表单。所以就用strum一个一个填写表单。
 
 
 

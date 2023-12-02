@@ -1,13 +1,16 @@
 mod api;
 
-use std::{time::Duration};
-use bytes::Bytes;
-use anyhow::{Result, anyhow};
-use schemars::{JsonSchema, schema_for};
-use tracing::error;
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use bytes::Bytes;
+use schemars::{schema_for, JsonSchema};
+use std::time::Duration;
+use tracing::error;
 
-use api::{ChatCompletionResponse, CreateImageRequest, CreateImageResponse, ChatCompletionRequest, CreateSpeechRequest, CreateTranscriptionRequest, CreateTranscriptionResponse, TranscriptionResponseFormat};
+use api::{
+    ChatCompletionRequest, ChatCompletionResponse, CreateImageRequest, CreateImageResponse,
+    CreateSpeechRequest, CreateTranscriptionResponse, CreateWhisperRequest, WhisperResponseFormat,
+};
 use reqwest::{Client, RequestBuilder, Response};
 
 const TIMEOUT: u64 = 30;
@@ -31,7 +34,10 @@ impl LlmSdk {
         }
     }
 
-    pub async fn chat_completion(&self, req: ChatCompletionRequest) -> Result<ChatCompletionResponse> {
+    pub async fn chat_completion(
+        &self,
+        req: ChatCompletionRequest,
+    ) -> Result<ChatCompletionResponse> {
         let req = self.prepare_request(req);
         let res = req.send_and_log().await?;
         Ok(res.json::<ChatCompletionResponse>().await?)
@@ -49,8 +55,12 @@ impl LlmSdk {
         Ok(res.bytes().await?)
     }
 
-    pub async fn create_transcription(&self, req: CreateTranscriptionRequest) -> Result<CreateTranscriptionResponse> {
-        let is_json = req.response_format.is_some() && req.response_format.unwrap() == TranscriptionResponseFormat::Json;
+    pub async fn create_whisper(
+        &self,
+        req: CreateWhisperRequest,
+    ) -> Result<CreateTranscriptionResponse> {
+        let is_json = req.response_format.is_some()
+            && req.response_format.unwrap() == WhisperResponseFormat::Json;
         let req = self.prepare_request(req);
         let res = req.send_and_log().await?;
         let ret = if is_json {
@@ -91,7 +101,6 @@ impl SendAndLog for RequestBuilder {
         Ok(res)
     }
 }
-
 
 pub trait ToSchema: JsonSchema {
     fn to_schema() -> serde_json::Value;

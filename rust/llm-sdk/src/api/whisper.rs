@@ -8,12 +8,12 @@ use crate::IntoRequest;
 
 #[derive(Debug, Clone, Builder)]
 #[builder(pattern = "mutable")]
-pub struct CreateTranscriptionRequest {
+pub struct CreateWhisperRequest {
     /// The audio file object (not file name) to transcribe, in one of these formats: flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, or webm.
     file: Vec<u8>,
     /// ID of the model to use. Only whisper-1 is currently available.
     #[builder(default)]
-    model: TranscriptionModel,
+    model: WhisperModel,
     /// The language of the input audio. Supplying the input language in ISO-639-1 format will improve accuracy and latency.
     #[builder(default, setter(strip_option, into))]
     language: Option<String>,
@@ -22,15 +22,25 @@ pub struct CreateTranscriptionRequest {
     prompt: Option<String>,
     /// The format of the transcript output, in one of these options: json, text, srt, verbose_json, or vtt.
     #[builder(default, setter(strip_option))]
-    pub(crate) response_format: Option<TranscriptionResponseFormat>,
+    pub(crate) response_format: Option<WhisperResponseFormat>,
     /// The sampling temperature, between 0 and 1. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. If set to 0, the model will use log probability to automatically increase the temperature until certain thresholds are hit.
     #[builder(default, setter(strip_option))]
     temperature: Option<f32>,
+
+    /// Request type: transcription or translation.
+    request_type: WhisperRequestType,
 }
 
-#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default, EnumString, Display)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, EnumString, Display)]
+pub enum WhisperRequestType {
+    #[default]
+    Transcription,
+    Translation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, EnumString, Display)]
 #[strum(serialize_all = "snake_case")]
-pub enum TranscriptionResponseFormat {
+pub enum WhisperResponseFormat {
     #[default]
     Json,
     Text,
@@ -40,16 +50,25 @@ pub enum TranscriptionResponseFormat {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, EnumString, Display)]
-pub enum TranscriptionModel {
+pub enum WhisperModel {
     #[default]
     #[strum(serialize = "whisper-1")]
     Whisper1,
 }
 
-impl CreateTranscriptionRequest {
-    pub fn new(file: Vec<u8>) -> Self {
-        CreateTranscriptionRequestBuilder::default()
+impl CreateWhisperRequest {
+    pub fn transcription(file: Vec<u8>) -> Self {
+        CreateWhisperRequestBuilder::default()
             .file(file)
+            .request_type(WhisperRequestType::Transcription)
+            .build()
+            .unwrap()
+    }
+
+    pub fn translation(file: Vec<u8>) -> Self {
+        CreateWhisperRequestBuilder::default()
+            .file(file)
+            .request_type(WhisperRequestType::Translation)
             .build()
             .unwrap()
     }
@@ -63,10 +82,10 @@ impl CreateTranscriptionRequest {
             .part("file", part)
             .text("model", self.model.to_string());
 
-        let form = if let Some(language) = self.language {
-            form.text("language", language)
-        } else {
-            form
+        // Translation doesn't have any language.
+        let form = match (self.request_type, self.language) {
+            (WhisperRequestType::Transcription, Some(language)) => form.text("language", language),
+            _ => form,
         };
 
         let form = if let Some(prompt) = self.prompt {
@@ -91,12 +110,13 @@ impl CreateTranscriptionRequest {
     }
 }
 
-impl IntoRequest for CreateTranscriptionRequest {
+impl IntoRequest for CreateWhisperRequest {
     fn into_request(self, client: Client) -> RequestBuilder {
-        client
-            .post("https://api.openai.com/v1/audio/transcriptions")
-            .multipart(self.into_form())
-        // TODO: review multipart
+        let url = match self.request_type {
+            WhisperRequestType::Transcription => "https://api.openai.com/v1/audio/transcriptions",
+            WhisperRequestType::Translation => "https://api.openai.com/v1/audio/translations",
+        };
+        client.post(url).multipart(self.into_form())
     }
 }
 
@@ -117,8 +137,8 @@ mod tests {
     async fn transcription_should_work() -> Result<()> {
         let sdk = crate::LlmSdk::new(std::env::var("OPENAI_API_KEY")?);
         let data = fs::read("/tmp/llm-sdk/speech.mp3")?;
-        let req = CreateTranscriptionRequest::new(data);
-        let res = sdk.create_transcription(req).await?;
+        let req = CreateWhisperRequest::transcription(data);
+        let res = sdk.create_whisper(req).await?;
         assert_eq!(res.text, "Hello, world.");
         Ok(())
     }
@@ -127,16 +147,28 @@ mod tests {
     async fn transcription_format_should_work() -> Result<()> {
         let sdk = crate::LlmSdk::new(std::env::var("OPENAI_API_KEY")?);
         let data = fs::read("/tmp/llm-sdk/speech.mp3")?;
-        let req = CreateTranscriptionRequestBuilder::default()
+        let req = CreateWhisperRequestBuilder::default()
             .file(data)
-            .response_format(TranscriptionResponseFormat::Text)
+            .response_format(WhisperResponseFormat::Text)
+            .request_type(WhisperRequestType::Transcription)
             .build()?;
 
-        let res = sdk.create_transcription(req).await?;
+        let res = sdk.create_whisper(req).await?;
         assert_eq!(res.text, "Hello, world.\n");
         Ok(())
     }
+
+    #[tokio::test]
+    async fn translation_should_work() -> Result<()> {
+        let sdk = crate::LlmSdk::new(std::env::var("OPENAI_API_KEY")?);
+        let data = fs::read("/tmp/llm-sdk/chinese.mp3")?;
+        let req = CreateWhisperRequestBuilder::default()
+            .file(data)
+            .request_type(WhisperRequestType::Translation)
+            .build()?;
+
+        let res = sdk.create_whisper(req).await?;
+        assert_eq!(res.text, "{\n  \"text\": \"The red scarf hangs on the chest, the motherland is always in my heart.\"\n}");
+        Ok(())
+    }
 }
-
-
-
