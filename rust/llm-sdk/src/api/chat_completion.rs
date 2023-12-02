@@ -1,6 +1,7 @@
 use crate::IntoRequest;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
+use crate::ToSchema;
 
 #[derive(Serialize, Debug, Clone, Builder)]
 pub struct ChatCompletionRequest {
@@ -64,7 +65,7 @@ pub struct ChatCompletionRequest {
     /// A list of tools the model may call. Currently, only functions are supported as a tool. Use this to provide a list of functions the model may generate JSON inputs for.
     #[builder(default, setter(into))]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    tool: Vec<Tool>,
+    tools: Vec<Tool>,
     /// Controls which (if any) function is called by the model. none means the model will not call a function and instead generates a message. auto means the model can pick between generating a message or calling a function. Specifying a particular function via {"type: "function", "function": {"name": "my_function"}} forces the model to call that function.
     /// none is the default when no functions are present. auto is the default if functions are present.
     #[builder(default, setter(strip_option))]
@@ -166,7 +167,8 @@ pub struct UserMessage {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AssistantMessage {
     /// The contents of the assistant message.
-    content: String,
+    #[serde(default)]
+    content: Option<String>,
     /// An optional name for the participant. Provides the model information to differentiate between participants of the same role.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     name: Option<String>,
@@ -293,8 +295,70 @@ impl ChatCompletionMessage {
 mod tests {
     use crate::LlmSdk;
     use anyhow::Result;
+    use schemars::{schema_for, JsonSchema};
 
     use super::*;
+
+    #[derive(Debug, Clone, JsonSchema, Deserialize)]
+    pub struct GetWeatherArgs {
+        /// The city to get the weather forecast for.
+        city: String,
+        /// The unit.
+        unit: TemperatureUnit,
+    }
+
+    #[derive(Debug, Clone, Default, JsonSchema, Deserialize, PartialEq, Eq)]
+    pub enum TemperatureUnit {
+        #[default]
+        Celsius,
+        Fahrenheit,
+    }
+
+    /// test tool functoin
+    fn get_weather_forecast(args: GetWeatherArgs) -> GetWeatherResponse {
+        match args.unit {
+            TemperatureUnit::Celsius => {
+                GetWeatherResponse {
+                    temperature: 22.2,
+                    unit: TemperatureUnit::Celsius,
+                }
+            }
+            TemperatureUnit::Fahrenheit => {
+                GetWeatherResponse {
+                    temperature: 72.0,
+                    unit: TemperatureUnit::Fahrenheit,
+                }
+            }
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    struct GetWeatherResponse {
+        temperature: f32,
+        unit: TemperatureUnit,
+    }
+
+    #[derive(Debug, JsonSchema, Deserialize)]
+    struct GetMoodArgs {
+        name: String,
+    }
+
+    impl Tool {
+        pub fn new_function<T: ToSchema> (
+            name: impl Into<String>,
+            description: impl Into<String>,
+        ) -> Self {
+            let parameters = T::to_schema();
+            Self {
+                r#type: ToolType::Function,
+                function: FunctionInfo {
+                    name: Some(name.into()),
+                    description: description.into(),
+                    parameters,
+                },
+            }
+        }
+    }
 
     #[test]
     #[ignore]
@@ -392,5 +456,86 @@ mod tests {
             .messages(messages)
             .build()
             .unwrap()
+    }
+
+    #[test]
+    fn chat_completion_request_with_tools_serialize_should_work() {
+        let req = get_tool_completion_request();
+        let json = serde_json::to_value(req).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({
+              "model": "gpt-3.5-turbo-1106",
+              "messages": [{
+                "role": "system",
+                "content": "I can choose the right function for you."
+              }, {
+                "role": "user",
+                "content": "What is the weather like in Boston?",
+                "name": "user1"
+              }],
+              "tools": [
+                {
+                  "type": "function",
+                  "function": {
+                    "description": "Get the weather forecast for a city.",
+                    "name": "get_weather_forecast",
+                    "parameters": GetWeatherArgs::to_schema()
+                  }
+                },
+                {
+                  "type": "function",
+                  "function": {
+                    "description": "Explain the meaning of the given mood.",
+                    "name": "explain_mood",
+                    "parameters": GetMoodArgs::to_schema()
+                  }
+                }
+              ]
+            })
+        );
+    }
+
+    fn get_tool_completion_request() -> ChatCompletionRequest {
+        let messages = vec![
+            ChatCompletionMessage::new_system("I can choose the right function for you.", ""),
+            ChatCompletionMessage::new_user("What is the weather like in Boston?", "user1"),
+        ];
+        let tools = vec![
+            Tool::new_function::<GetWeatherArgs>(
+                "get_weather_forecast",
+                "Get the weather forecast for a city.",
+            ),
+            Tool::new_function::<GetMoodArgs>(
+                "explain_mood",
+                "Explain the meaning of the given mood.",
+            ),
+        ];
+        ChatCompletionRequestBuilder::default()
+            .messages(messages)
+            .tools(tools)
+            .build()
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn chat_completion_with_tools_should_work() -> Result<()> {
+        let sdk = LlmSdk::new(std::env::var("OPENAI_API_KEY")?);
+        let req = get_tool_completion_request();
+        let res = sdk.chat_completion(req).await?;
+        assert_eq!(res.model, ChatCompletionModel::Gpt3Turbo);
+        assert_eq!(res.object, "chat.completion");
+        assert_eq!(res.choices.len(), 1);
+        let choice = &res.choices[0];
+        assert_eq!(choice.finish_reason, FinishReason::ToolCalls);
+        assert_eq!(choice.index, 0);
+        assert_eq!(choice.message.content, None);
+        assert_eq!(choice.message.tool_calls.len(), 1);
+        let tool_call = &choice.message.tool_calls[0];
+        assert_eq!(tool_call.function.name, "get_weather_forecast");
+        let ret = get_weather_forecast(serde_json::from_str(&tool_call.function.arguments)?);
+        assert_eq!(ret.unit, TemperatureUnit::Celsius);
+        assert_eq!(ret.temperature, 22.2);
+        Ok(())
     }
 }

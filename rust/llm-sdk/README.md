@@ -53,3 +53,29 @@
         + 日志收集器初始化后，才能用配套的日志记录API tracing记录
 
 
+## tool
+
+> 定义一些function, 让GPT决定调用哪个。MemGPT
+
+- Q: 为什么需要schema
+- A: 因为OpenAI的API接受的是一个json schema, 而不是json字符串
+- Q: 为什么不serde直接反序列化
+- A: 因为serde反序列化得到是json字符串和json schema是两回事, schema更像是对对象的描述https://json-schema.org/understanding-json-schema
+
+- 如何处理复杂的json
+    * 一方面如何处理复杂json: schemars
+    * 另一方面怎么让用户方便使用
+
+多trait写法
+
+```rust
+pub trait ToSchema: JsonSchema {
+    fn to_schema() -> serde_json::Value;
+}
+```
+
+
+
+
+
+

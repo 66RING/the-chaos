@@ -2,6 +2,7 @@ mod api;
 
 use std::time::Duration;
 use anyhow::{Result, anyhow};
+use schemars::{JsonSchema, schema_for};
 use tracing::error;
 use async_trait::async_trait;
 
@@ -68,6 +69,17 @@ impl SendAndLog for RequestBuilder {
             return Err(anyhow!("chat_completion error: {}", text));
         }
         Ok(res)
+    }
+}
+
+
+pub trait ToSchema: JsonSchema {
+    fn to_schema() -> serde_json::Value;
+}
+
+impl<T: JsonSchema> ToSchema for T {
+    fn to_schema() -> serde_json::Value {
+        serde_json::to_value(schema_for!(Self)).unwrap()
     }
 }
 
