@@ -2,7 +2,7 @@ use axum::routing::{delete, get, post, put};
 use axum::Router;
 use tracing::{info};
 
-use crate::dto::test::{TestPutRequest, TestPostRequest};
+use crate::dto::{TestPutRequest, TestPostRequest};
 
 pub struct TestHandler {}
 

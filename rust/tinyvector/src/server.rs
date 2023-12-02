@@ -1,7 +1,5 @@
 use crate::database::Database;
-use crate::routes::db_handler::DbHandler;
-use crate::routes::test_handler::TestHandler;
-use crate::routes::SystemHandler;
+use crate::routes::{DbHandler, TestHandler, SystemHandler};
 use crate::shutdown::Shutdown;
 use anyhow::Result;
 use axum::Server;

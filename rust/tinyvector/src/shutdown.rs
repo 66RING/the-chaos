@@ -1,4 +1,4 @@
-use axum::{Extension, Router};
+use axum::Extension;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::{signal, sync::broadcast};
 use tracing::{error, info};
