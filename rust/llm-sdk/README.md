@@ -95,6 +95,12 @@ pub trait ToSchema: JsonSchema {
     * 为什么要用strum: 因为serde对单个字段的转换不方便也不方便直接转换成表单。所以就用strum一个一个填写表单。
 
 
+## Embeddings
+
+### crate
+
+- serde
+    * untagged: 不让再添加一层
 
 
 

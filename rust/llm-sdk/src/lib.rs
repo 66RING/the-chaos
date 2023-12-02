@@ -9,7 +9,7 @@ use tracing::error;
 
 use api::{
     ChatCompletionRequest, ChatCompletionResponse, CreateImageRequest, CreateImageResponse,
-    CreateSpeechRequest, CreateTranscriptionResponse, CreateWhisperRequest, WhisperResponseFormat,
+    CreateSpeechRequest, CreateTranscriptionResponse, CreateWhisperRequest, WhisperResponseFormat, CreateEmbeddingResponse, CreateEmbeddingRequest,
 };
 use reqwest::{Client, RequestBuilder, Response};
 
@@ -70,6 +70,12 @@ impl LlmSdk {
             CreateTranscriptionResponse { text }
         };
         Ok(ret)
+    }
+
+    pub async fn create_embedding(&self, req: CreateEmbeddingRequest) -> Result<CreateEmbeddingResponse> {
+        let req = self.prepare_request(req);
+        let res = req.send_and_log().await?;
+        Ok(res.json::<CreateEmbeddingResponse>().await?)
     }
 
     fn prepare_request(&self, req: impl IntoRequest) -> RequestBuilder {
