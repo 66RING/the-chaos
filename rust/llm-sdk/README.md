@@ -80,6 +80,22 @@ pub trait ToSchema: JsonSchema {
 > 语音
 
 
+## transcriptions
+
+> 语言转文字
+
+**处理表单的情况**, 序列化反序列化
+
+- reqwest.multipart
+- strum
+
+### crate
+
+- Strum
+    * TODO
+        + 为什么要用strum
+
+
 
 
 

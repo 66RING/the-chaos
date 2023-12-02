@@ -7,7 +7,7 @@ use schemars::{JsonSchema, schema_for};
 use tracing::error;
 use async_trait::async_trait;
 
-use api::{ChatCompletionResponse, CreateImageRequest, CreateImageResponse, ChatCompletionRequest, CreateSpeechRequest};
+use api::{ChatCompletionResponse, CreateImageRequest, CreateImageResponse, ChatCompletionRequest, CreateSpeechRequest, CreateTranscriptionRequest, CreateTranscriptionResponse, TranscriptionResponseFormat};
 use reqwest::{Client, RequestBuilder, Response};
 
 const TIMEOUT: u64 = 30;
@@ -49,6 +49,19 @@ impl LlmSdk {
         Ok(res.bytes().await?)
     }
 
+    pub async fn create_transcription(&self, req: CreateTranscriptionRequest) -> Result<CreateTranscriptionResponse> {
+        let is_json = req.response_format.is_some() && req.response_format.unwrap() == TranscriptionResponseFormat::Json;
+        let req = self.prepare_request(req);
+        let res = req.send_and_log().await?;
+        let ret = if is_json {
+            res.json::<CreateTranscriptionResponse>().await?
+        } else {
+            let text = res.text().await?;
+            CreateTranscriptionResponse { text }
+        };
+        Ok(ret)
+    }
+
     fn prepare_request(&self, req: impl IntoRequest) -> RequestBuilder {
         let req = req.into_request(self.client.clone());
         let req = if self.token.is_empty() {
@@ -72,8 +85,8 @@ impl SendAndLog for RequestBuilder {
         let status = res.status();
         if status.is_client_error() || status.is_server_error() {
             let text = res.text().await?;
-            error!("chat_completion error: {}", text);
-            return Err(anyhow!("chat_completion error: {}", text));
+            error!("API error: {}", text);
+            return Err(anyhow!("API error: {}", text));
         }
         Ok(res)
     }

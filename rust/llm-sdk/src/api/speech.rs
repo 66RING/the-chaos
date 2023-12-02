@@ -1,7 +1,5 @@
-use std::default;
-
 use derive_builder::Builder;
-use reqwest::{RequestBuilder, Client};
+use reqwest::{Client, RequestBuilder};
 use serde::{Deserialize, Serialize};
 
 use crate::IntoRequest;
@@ -96,10 +94,4 @@ mod tests {
 
         Ok(())
     }
-
 }
-
-
-
-
-
