@@ -6,6 +6,7 @@ pub use api::*;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
+use derive_builder::Builder;
 use middleware::RetryMiddleware;
 use reqwest::Response;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, RequestBuilder};
@@ -17,34 +18,48 @@ use tracing::error;
 
 const TIMEOUT: u64 = 30;
 
-#[derive(Debug)]
+#[derive(Debug, Builder, Clone)]
 pub struct LlmSdk {
     // pub in this crate only
+    #[builder(setter(into), default = r#""https://api.openai.com/v1".into()"#)]
     pub(crate) base_url: String,
+    #[builder(setter(into))]
     pub(crate) token: String,
+    #[builder(setter(skip), default = "self.default_client()")]
     pub(crate) client: ClientWithMiddleware,
+    #[builder(default = "3")]
+    #[allow(dead_code)]
+    pub(crate) max_retries: u32,
 }
 
 pub trait IntoRequest {
     fn into_request(self, base_url: &str, client: ClientWithMiddleware) -> RequestBuilder;
 }
 
-impl LlmSdk {
-    pub fn new(base_url: impl Into<String>, token: impl Into<String>, max_retries: u32) -> Self {
-        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(max_retries);
+impl LlmSdkBuilder {
+    pub fn default_client(&self) -> ClientWithMiddleware {
+        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
         let m = RetryTransientMiddleware::new_with_policy(retry_policy);
-        let client = ClientBuilder::new(reqwest::Client::new())
+        ClientBuilder::new(reqwest::Client::new())
             // Trace HTTP requests. See the tracing crate to make use of these traces.
             .with(TracingMiddleware::default())
             // Retry failed requests.
             .with(RetryMiddleware::from(m))
-            .build();
+            .build()
+    }
+}
 
-        Self {
-            base_url: base_url.into(),
-            token: token.into(),
-            client,
-        }
+impl LlmSdk {
+    pub fn new(token: impl Into<String>) -> Self {
+        LlmSdkBuilder::default().token(token).build().unwrap()
+    }
+
+    pub fn new_with_base_url(base_url: impl Into<String>, token: impl Into<String>) -> Self {
+        LlmSdkBuilder::default()
+            .base_url(base_url)
+            .token(token)
+            .build()
+            .unwrap()
     }
 
     pub async fn chat_completion(
@@ -142,9 +157,5 @@ fn init() {
 
 #[cfg(test)]
 lazy_static::lazy_static! {
-    pub static ref SDK: LlmSdk = LlmSdk::new(
-        "https://api.openai.com/v1",
-        std::env::var("OPENAI_API_KEY").unwrap(),
-        3,
-    );
+    pub static ref SDK: LlmSdk = LlmSdk::new(std::env::var("OPENAI_API_KEY").unwrap());
 }

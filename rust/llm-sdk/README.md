@@ -130,6 +130,27 @@ impl Middleware for RetryMiddleware {
 - impl trait技巧: rust doc里查看source, 看一个源码use的哪些crate, cv一下
 
 
+## rust默认参数
+
+- 可以使用derive builder实现类似的效果, 使用使用builder构建就可以实现默认参数, 如果需要简化builder构建则还可以用new封装
+- rust转义小技巧: `#[builder(setter(into), default = r#""https://api.openai.com/v1".into()"#)]`
+    * `r#取消转义的内容#`, 把内部双引号取消转义了
+
+```rust
+#[derive(Debug, Builder)]
+pub struct LlmSdk {
+    // pub in this crate only
+    #[builder(setter(into), default = r#""https://api.openai.com/v1".into()"#)]
+    pub(crate) base_url: String,
+    #[builder(setter(into))]
+    pub(crate) token: String,
+    #[builder(setter(skip), default = "self.default_client()")]
+    pub(crate) client: ClientWithMiddleware,
+    #[builder(default = "3")]
+    #[allow(dead_code)]
+    pub(crate) max_retries: u32,
+}
+```
 
 
 
