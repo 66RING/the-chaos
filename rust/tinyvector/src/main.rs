@@ -3,7 +3,7 @@ mod routes;
 mod dto;
 mod database;
 mod similarity;
-
+mod shutdown;
 mod test_data;
 
 use anyhow::Result;

@@ -20,6 +20,9 @@ POST /test/post
 }
 
 http://localhost:3000
+GET /system/shutdown
+
+http://localhost:3000
 POST /db/create_table
 {
     "table_name": "table2",

@@ -50,7 +50,7 @@
 
 - 启动server
     - 初始化db
-    - shutdown: 通知器优雅地关闭TODO
+    - shutdown: 通知器优雅地关闭
     - ⭐router: api handler
         * layer(Extension), 可以实现状态共享, 让单例在handler间传递
     - 启动server监听端口
@@ -70,4 +70,6 @@
     * 保存一些相似度处理的方法
 - `routes`
     * 负责处理http请求
+- graceful shutdown, 我们需要让程序正常退出已保证数据正常写回数据库
+    * 启动一个单独的线程来监听ctrl c和terminate信号, 通过channel通知主循环停止
 
