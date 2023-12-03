@@ -1,0 +1,15 @@
+{
+  "name": "ava-bot",
+  "version": "1.0.0",
+  "description": "1. app构思: 长什么样/表现形式画一画 2. 功能需求: 需要用哪些功能     - 浏览器录音...",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "tailwindcss": "^3.3.5"
+  }
+}
