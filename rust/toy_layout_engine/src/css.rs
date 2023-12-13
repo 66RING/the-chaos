@@ -26,12 +26,14 @@ pub struct SimpleSelector {
 }
 
 /// A declaration is just a name/value pair, separated by a colon and ending with a semicolon.
+#[derive(Clone)]
 pub struct Declaration {
     pub name: String,
     pub value: Value,
 }
 
 /// Toy engine supports only a handful of CSS’s many value types.
+#[derive(Clone)]
 pub enum Value {
     Keyword(String),
     Length(f32, Unit),
@@ -49,6 +51,7 @@ impl Value {
     }
 }
 
+#[derive(Clone)]
 pub enum Unit {
     Px,
     // insert more units here
@@ -67,6 +70,7 @@ pub struct Color {
 pub type Specificity = (usize, usize, usize);
 
 impl Selector {
+    /// Return id, class, tag_name
     pub fn specificity(&self) -> Specificity {
         // http://www.w3.org/TR/selectors/#specificity
         let Selector::Simple(ref simple) = *self;

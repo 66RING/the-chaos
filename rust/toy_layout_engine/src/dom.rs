@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// The DOM is a tree of nodes.
 pub struct Node {
@@ -20,6 +20,20 @@ pub struct ElementData {
     pub attributes: AttrMap,
 }
 
+impl ElementData {
+    pub fn id(&self) -> Option<&String> {
+        self.attributes.get("id")
+    }
+
+    /// The class attribute can contain multiple class names separated by spaces, which we return in a hash table.
+    pub fn classes(&self) -> HashSet<&str> {
+        match self.attributes.get("class") {
+            Some(classlist) => classlist.split(' ').collect(),
+            None => HashSet::new(),
+        }
+    }
+}
+
 pub type AttrMap = HashMap<String, String>;
 
 pub fn text(data: String) -> Node {
@@ -38,4 +52,3 @@ pub fn elem(name: String, attrs: AttrMap, children: Vec<Node>) -> Node {
         }),
     }
 }
-
