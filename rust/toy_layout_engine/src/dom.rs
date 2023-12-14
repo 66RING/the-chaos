@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 /// The DOM is a tree of nodes.
+#[derive(Debug)]
 pub struct Node {
     /// data common to all nodes:
     pub children: Vec<Node>,
@@ -9,12 +10,14 @@ pub struct Node {
     pub node_type: NodeType,
 }
 
+#[derive(Debug)]
 pub enum NodeType {
     Text(String),
     Element(ElementData),
 }
 
 /// An element includes a tag name and any number of attributes, which can be stored as a map from names to values.
+#[derive(Debug)]
 pub struct ElementData {
     pub tag_name: String,
     pub attributes: AttrMap,

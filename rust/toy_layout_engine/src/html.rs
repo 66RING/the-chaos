@@ -7,6 +7,23 @@ struct Parser {
     input: String,
 }
 
+/// Parse an HTML document and return the root element.
+/// Parse an entire HTML document into a DOM tree.
+pub fn parse(source: String) -> dom::Node {
+    let mut nodes = Parser {
+        pos: 0,
+        input: source,
+    }
+    .parse_nodes();
+
+    // If the document contains a root element, just return it. Otherwise, create one.
+    if nodes.len() == 1 {
+        nodes.swap_remove(0)
+    } else {
+        dom::elem("html".to_string(), HashMap::new(), nodes)
+    }
+}
+
 impl Parser {
     /// Read the current character without consuming it.
     fn next_char(&self) -> char {
@@ -136,22 +153,6 @@ impl Parser {
         }
         return nodes;
     }
-    /// Parse an HTML document and return the root element.
-    /// Parse an entire HTML document into a DOM tree.
-    pub fn parse(source: String) -> dom::Node {
-        let mut nodes = Parser {
-            pos: 0,
-            input: source,
-        }
-        .parse_nodes();
-
-        // If the document contains a root element, just return it. Otherwise, create one.
-        if nodes.len() == 1 {
-            nodes.swap_remove(0)
-        } else {
-            dom::elem("html".to_string(), HashMap::new(), nodes)
-        }
-    }
 }
 
 #[cfg(test)]
@@ -159,11 +160,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parser_should_work() {
-        // // <html><body>Hello, world!</body></html>
-        // let root = element("html");
-        // let body = element("body");
-        // root.children.push(body);
-        // body.children.push(text("Hello, world!"));
+    fn html_parser_should_work() {
+        // let source = String::from(
+        //     r#"
+        //     <div></div>
+        //     "#);
+        // let h = parse(source);
     }
 }

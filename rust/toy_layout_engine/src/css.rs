@@ -4,21 +4,25 @@
 
 /// A CSS stylesheet is a series of rules.
 /// (In the example stylesheet above, each line contains one rule.)
+#[derive(Debug)]
 pub struct Stylesheet {
     pub rules: Vec<Rule>,
 }
 
 /// A rule includes one or more selectors separated by commas, followed by a series of declarations enclosed in braces.
+#[derive(Debug)]
 pub struct Rule {
     pub selectors: Vec<Selector>,
     pub declarations: Vec<Declaration>,
 }
 
 /// TODO: Supports only simple selectors for now.
+#[derive(Debug, PartialEq)]
 pub enum Selector {
     Simple(SimpleSelector),
 }
 
+#[derive(Debug, PartialEq)]
 pub struct SimpleSelector {
     pub tag_name: Option<String>,
     pub id: Option<String>,
@@ -26,14 +30,14 @@ pub struct SimpleSelector {
 }
 
 /// A declaration is just a name/value pair, separated by a colon and ending with a semicolon.
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Declaration {
     pub name: String,
     pub value: Value,
 }
 
 /// Toy engine supports only a handful of CSS’s many value types.
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     Keyword(String),
     Length(f32, Unit),
@@ -51,13 +55,13 @@ impl Value {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Unit {
     Px,
     // insert more units here
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Color {
     pub r: u8,
     pub g: u8,
@@ -81,7 +85,7 @@ impl Selector {
     }
 }
 
-struct Parser {
+pub struct Parser {
     pos: usize, // "usize" is an unsigned integer, similar to "size_t" in C
     input: String,
 }
@@ -282,9 +286,68 @@ fn valid_identifier_char(c: char) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     fn css_parser_should_work() {
-        // h1, h2, h3 { margin: auto; color: #cc0000; }
-        // div.note { margin-bottom: 20px; padding: 10px; }
-        // #answer { display: none; }
+        let source = String::from(
+            r#"
+            h1, h2, h3 { margin: auto; color: #cc0000; }
+            div.note { margin-bottom: 20px; padding: 10px; }
+            #answer { display: none; height: 100px; }
+            "#);
+        let stylesheet = parse(source);
+        assert_eq!(stylesheet.rules.len(), 3);
+        assert_eq!(stylesheet.rules[0].selectors.len(), 3);
+        assert_eq!(stylesheet.rules[0].selectors[0], Selector::Simple(SimpleSelector {
+            tag_name: Some(String::from("h1")),
+            id: None,
+            class: vec![]
+        }));
+        assert_eq!(stylesheet.rules[0].declarations.len(), 2);
+        assert_eq!(stylesheet.rules[0].declarations[0], Declaration {
+            name: String::from("margin"),
+            value: Value::Keyword(String::from("auto"))
+        });
+        assert_eq!(stylesheet.rules[0].declarations[1], Declaration {
+            name: String::from("color"),
+            value: Value::ColorValue(Color { r: 204, g: 0, b: 0, a: 255 })
+        });
+
+        assert_eq!(stylesheet.rules[1].selectors.len(), 1);
+        assert_eq!(stylesheet.rules[1].selectors[0], Selector::Simple(SimpleSelector {
+            tag_name: Some(String::from("div")),
+            id: None,
+            class: vec![String::from("note")]
+        }));
+        assert_eq!(stylesheet.rules[1].declarations.len(), 2);
+        assert_eq!(stylesheet.rules[1].declarations[0], Declaration {
+            name: String::from("margin-bottom"),
+            value: Value::Length(20.0, Unit::Px)
+        });
+        assert_eq!(stylesheet.rules[1].declarations[1], Declaration {
+            name: String::from("padding"),
+            value: Value::Length(10.0, Unit::Px)
+        });
+
+        assert_eq!(stylesheet.rules[2].selectors.len(), 1);
+        assert_eq!(stylesheet.rules[2].selectors[0], Selector::Simple(SimpleSelector {
+            tag_name: None,
+            id: Some(String::from("answer")),
+            class: vec![]
+        }));
+        assert_eq!(stylesheet.rules[2].declarations.len(), 2);
+        assert_eq!(stylesheet.rules[2].declarations[0], Declaration {
+            name: String::from("display"),
+            value: Value::Keyword(String::from("none"))
+        });
+        assert_eq!(stylesheet.rules[2].declarations[1], Declaration {
+            name: String::from("height"),
+            value: Value::Length(100.0, Unit::Px)
+        });
+
+        assert_eq!(stylesheet.rules[0].selectors[0].specificity(), (0, 0, 1));
+        assert_eq!(stylesheet.rules[0].selectors[1].specificity(), (0, 0, 1));
+        assert_eq!(stylesheet.rules[0].selectors[2].specificity(), (0, 0, 1));
+        assert_eq!(stylesheet.rules[1].selectors[0].specificity(), (0, 1, 1));
+        assert_eq!(stylesheet.rules[2].selectors[0].specificity(), (1, 0, 0));
     }
 }

@@ -9,11 +9,13 @@ use crate::css::{Value, Selector, SimpleSelector, Rule, Specificity, Stylesheet}
 type PropertyMap = HashMap<String, Value>;
 
 /// A node with associated style data.
+#[derive(Debug)]
 pub struct StyledNode<'a> {
     pub node: &'a Node, // pointer to a DOM node
     pub specified_values: PropertyMap,
     pub children: Vec<StyledNode<'a>>,
 }
+
 
 /// The first step in building the style tree is selector matching.
 fn matches(elem: &ElementData, selector: &Selector) -> bool {
@@ -50,7 +52,7 @@ type MatchedRule<'a> = (Specificity, &'a Rule);
 fn match_rule<'a>(elem: &ElementData, rule: &'a Rule) -> Option<MatchedRule<'a>> {
     // Find the first (highest-specificity) matching selector.
     rule.selectors.iter()
-        .find(|selector| matches(elem, *selector))
+        .find(|selector|  matches(elem, *selector))
         .map(|selector| (selector.specificity(), rule))
 }
 
