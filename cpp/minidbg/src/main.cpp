@@ -8,6 +8,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "linenoise.h"
+
 class breakpoint;
 
 // TODO: review helper function
@@ -91,6 +93,7 @@ void debugger::continue_execution() {
 
 class breakpoint {
 public:
+  breakpoint() = default;
   breakpoint(pid_t pid, std::intptr_t addr)
       : m_pid{pid}, m_addr{addr}, m_enabled{false}, m_saved_data{} {}
 
