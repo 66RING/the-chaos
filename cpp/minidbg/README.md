@@ -81,6 +81,34 @@ long ptrace(enum __ptrace_request request, pid_t pid,
         + 通过子进程ip查看`/proc/<pid>/maps`里的地址映射情况
         + 找到base address在加上objdump看到的偏移
 
+
+## 控制寄存器和内存
+
+- abs
+
+- 根据x86的spec一个寄存器需要他的名字和DWARF register number
+    * 寄存器结构体可以查看`/usr/include/sys/user.h`
+    * DWARF register number可以查看[System V x86_64 ABI](https://www.uclibc.org/docs/psABI-x86_64.pdf)
+
+- 读取寄存器
+    * ptrace的`PTRACE_GETREGS`指令, dump出一个寄存器对象(`uint64_t`数组): `ptrace(PTRACE_GETREGS, pid, nullptr, &regs)`
+    * 访问指定位置寄存器: 创建一个寄存器偏移表, 查表获取偏移来访问array
+- 写入寄存器
+    * `PTRACE_SETREGS`
+    * 整个寄存器的array写回: `PTRACE_GETREGS`读一份array, 修改一点, 再写回
+- 通过DWARF register number查找寄存器
+    * 同理, 建立一个偏移查找表
+- 添加读取寄存器的命令: `register {dump|read|write}`
+    * `dump_registers`helper函数便利每个寄存器的数据
+- 读取内存
+    * 封装`PTRACE_PEEKDATA`, `PTRACE_POKEDATA`做内存读写
+    * 一次读写大块内存可以考虑继续使用ptrace或者使用[`process_vm_readv`和`process_vm_writev`](http://man7.org/linux/man-pages/man2/process_vm_readv.2.html)
+- 添加内存访问指令
+- 完善continue
+    * 因为已经可以读取寄存器了, 所以再如果要单步执行跳过断点可以通过检查pc指针是否有bp, 然后关闭, 单步, 重启。
+
+
+
 ## TODO
 
 - rewrite it in rust!!!!!!!
