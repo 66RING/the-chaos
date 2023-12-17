@@ -1,10 +1,11 @@
-#ifndef __REGISTER_H
-#define __REGISTER_H
+#ifndef __REGISTER_HPP
+#define __REGISTER_HPP
 
 #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 #include <sys/ptrace.h>
 #include <sys/user.h>
