@@ -1,3 +1,4 @@
 minidbg
 build/
 ext/
+.clangd

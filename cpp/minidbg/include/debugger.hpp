@@ -1,14 +1,29 @@
 #ifndef __DEBUGGER_HPP
 #define __DEBUGGER_HPP
 
+#include <fcntl.h>
+#include <linux/types.h>
+#include <sstream>
+#include <string>
+#include <sys/stat.h>
+#include <unordered_map>
+#include <utility>
+
 #include "breakpoint.hpp"
 #include "register.hpp"
-#include <unordered_map>
+
+#include "dwarf/dwarf++.hh"
+#include "elf/elf++.hh"
 
 class debugger {
 public:
   debugger(std::string prog_name, pid_t pid)
-      : m_prog_name{std::move(prog_name)}, m_pid{pid} {}
+      : m_prog_name{std::move(prog_name)}, m_pid{pid} {
+    auto fd = open(m_prog_name.c_str(), O_RDONLY);
+
+    m_elf = elf::elf{elf::create_mmap_loader(fd)};
+    m_dwarf = dwarf::dwarf{dwarf::elf::create_loader(m_elf)};
+  }
 
   void run();
   void continue_execution();
@@ -22,10 +37,23 @@ public:
   void step_over_breakpoint();
   void wait_for_signal();
 
+  uint64_t offset_load_address(uint64_t addr);
+  void initialise_load_address();
+  void print_source(const std::string &file_name, unsigned line,
+                    unsigned n_lines_context = 2);
+
+  void handle_sigtrap(siginfo_t info);
+  siginfo_t get_signal_info();
+  dwarf::die get_function_from_pc(uint64_t pc);
+  dwarf::line_table::iterator get_line_entry_from_pc(uint64_t pc);
+
 private:
   std::unordered_map<std::intptr_t, breakpoint> m_breakpoints;
   std::string m_prog_name;
   pid_t m_pid;
+  dwarf::dwarf m_dwarf;
+  elf::elf m_elf;
+  uint64_t m_load_address;
 };
 
 #endif // !__DEBUGGER_HPP

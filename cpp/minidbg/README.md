@@ -85,6 +85,12 @@ long ptrace(enum __ptrace_request request, pid_t pid,
 ## 控制寄存器和内存
 
 - abs
+    * ptrace
+        + `PTRACE_GETREGS`获取寄存器array
+        + `PTRACE_SETREGS`写入寄存器array
+    * offset map: linux里一些API都是返回`void*`的,方便起见可以构建一个offset map
+    * lib
+        + `process_vm_writev`, `process_vm_readv`
 
 - 根据x86的spec一个寄存器需要他的名字和DWARF register number
     * 寄存器结构体可以查看`/usr/include/sys/user.h`
@@ -106,6 +112,135 @@ long ptrace(enum __ptrace_request request, pid_t pid,
 - 添加内存访问指令
 - 完善continue
     * 因为已经可以读取寄存器了, 所以再如果要单步执行跳过断点可以通过检查pc指针是否有bp, 然后关闭, 单步, 重启。
+
+
+## Elves and dwarves(ELF and DWARF)
+
+> ELF: Executable and Linkable Format
+>
+> DWARF: Debug information format most commonly used with ELF
+
+- abs
+    * **像解析ELF一样解析DWARF**
+
+- 调试信息格式: DWARF
+    * 和ELF类似`-g`编译后会在二进制文件中嵌入调试信息，如文件行号再内存的哪个位置
+    * 使用`dwarfdump`工具可以查看调试信息
+    * DIE(Debugger info entry)
+
+dwarfdump格式如下，
+
+```
+.debug_line: line number info for a single cu
+Source lines (from CU-DIE at .debug_info offset 0x0000000b):
+
+            NS new statement, BB new basic block, ET end of text sequence
+            PE prologue end, EB epilogue begin
+            IS=val ISA number, DI=val discriminator value
+<pc>        [lno,col] NS BB ET PE EB IS= DI= uri: "filepath"
+0x00400670  [   1, 0] NS uri: "/path/to/test.cpp"
+0x00400676  [   2,10] NS PE
+0x0040067e  [   3,10] NS
+0x00400686  [   4,14] NS
+0x0040068a  [   4,16]
+0x0040068e  [   4,10]
+0x00400692  [   5, 7] NS
+0x0040069a  [   6, 1] NS
+0x0040069c  [   6, 1] NS ET
+```
+
+如何根据DWARF使用行好设置断点: 根据行号查找entry, 查看地址如这里是最后一个line3： `0x0040067e`。这个地址是从加载地址开始的偏移。
+
+**`.debug_info`块**
+
+```
+.debug_info
+
+COMPILE_UNIT<header overall offset = 0x00000000>:
+< 0><0x0000000b>  DW_TAG_compile_unit
+                    DW_AT_producer              clang version 3.9.1 (tags/RELEASE_391/final)
+                    DW_AT_language              DW_LANG_C_plus_plus
+                    DW_AT_name                  /path/to/variable.cpp
+                    DW_AT_stmt_list             0x00000000
+                    DW_AT_comp_dir              /path/to
+                    DW_AT_low_pc                0x00400670
+                    DW_AT_high_pc               0x0040069c
+
+LOCAL_SYMBOLS:
+< 1><0x0000002e>    DW_TAG_subprogram
+                      DW_AT_low_pc                0x00400670
+                      DW_AT_high_pc               0x0040069c
+                      DW_AT_frame_base            DW_OP_reg6
+                      DW_AT_name                  main
+                      DW_AT_decl_file             0x00000001 /path/to/variable.cpp
+                      DW_AT_decl_line             0x00000001
+                      DW_AT_type                  <0x00000077>
+                      DW_AT_external              yes(1)
+< 2><0x0000004c>      DW_TAG_variable
+                        DW_AT_location              DW_OP_fbreg -8
+                        DW_AT_name                  a
+                        DW_AT_decl_file             0x00000001 /path/to/variable.cpp
+                        DW_AT_decl_line             0x00000002
+                        DW_AT_type                  <0x0000007e>o...
+```
+
+根据pc判断所处函数/变量
+
+```
+根据顶层compile unit(CU)判断pc是否在这个范围
+    根据子层compile unit(CU)判断pc是否在这个范围
+```
+
+根据函数名设置断点: 
+
+1. 遍历每个CU的`DW_AT_name`或者查看`.debug_pubnames`段找到到所在table
+2. 再根据table记录的信息跳过一些无关的地址
+
+根据变量名读取值
+
+1. 根据`DW_AT_name`查找变量名找到对应CU
+2. 根据CU内的`DW_AT_location`字段获取变量再栈帧内的偏移
+3. 栈帧基地址可以通过`DW_AT_frame_base`获取
+
+
+## DWARF解析
+
+- abs
+    * TODO: 第三方库的编译和使用: libelfin
+    * `/proc/<pid>/maps`
+
+- `DWARF`解析可以使用`libelfin`库
+    * 读取elf, 然后根据elf读取到dwarf块
+- 利用`libelfin`库实现根据pc找entry和找function的功能
+- 通过`/proc/<pid>/maps`查找地址映射
+- 打印源码
+    * 断点触发后打印一行告诉我们断在哪里了
+    * 读取源码文件, 然后getline即可
+- 改善信号处理: 回显触发的哪个信息
+    * 根据ptrace的spec定义一个`siginfo_t`结构体来解析信号信息
+- 处理trap信号
+    * 断点触发时会发送`SI_KERNEL`或`TRAP_BRKPT`。单步执行完成后会触发`TRAP_TRACE`
+    * 详见`man sigaction`
+    * 完善了trap处理后之前根据pc做的单步跳过就可以改掉了
+
+- **Cmake工程**
+    * 添加libelfin库到项目
+        1. 从源码编译目标库: `add_custom_target(libelfin COMMAND make WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/ext/libelfin)`
+        2. 将编译好的库连接到本项目:
+        ```cmake
+        target_link_libraries(minidbg
+                              ${PROJECT_SOURCE_DIR}/ext/libelfin/dwarf/libdwarf++.so
+                              ${PROJECT_SOURCE_DIR}/ext/libelfin/elf/libelf++.so)
+        ```
+        3. 告知cmake存在依赖关系: `add_dependencies(minidbg libelfin)`
+    * 添加目标测试程序的编译
+    ```cmake
+    add_executable(variable examples/variable.cpp)
+    set_target_properties(variable
+                          PROPERTIES COMPILE_FLAGS "-gdwarf-2 -O0")
+    ```
+
+
 
 
 
