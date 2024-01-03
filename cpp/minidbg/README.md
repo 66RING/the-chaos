@@ -242,6 +242,22 @@ LOCAL_SYMBOLS:
 
 
 
+## source level stepping
+
+- abs
+    * ptrace
+        + `PTRACE_SINGLESTEP`
+    * 单步调试的本质是设置一个临时断点, step后删除
+
+- 支持单步调试, 添加`stepi`指令
+- step out, 相当于finish
+    * 获取函数的返回地址, 然后再这个地址打断点并执行
+- step in
+- **step over**, 单行执行, 本质也是设置一个临时断点
+    * 难点在于直接根据源码的下一行设置断点是不行的, 因为源码的下一行是哪里无法确定(可能是空行，可能是分支)
+    * 真实的debugg会根据当前指令也做分支判断断点设置再哪
+    * **这里的简单实现是: **给当前函数后面的每一行都设置断点, step后再移除
+
 
 
 ## TODO

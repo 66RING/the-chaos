@@ -29,15 +29,24 @@ public:
   void continue_execution();
   void handle_command(const std::string &line);
   void set_breakpoint_at_address(std::intptr_t addr);
+  void remove_breakpoint(std::intptr_t addr);
   void dump_registers();
   uint64_t read_memory(uint64_t address);
   void write_memory(uint64_t address, uint64_t value);
   uint64_t get_pc();
+  uint64_t get_offset_pc();
   void set_pc(uint64_t pc);
   void step_over_breakpoint();
+  void step_out();
+  void step_in();
+  void step_over();
+  void single_step_instruction();
+  void single_step_instruction_with_breakpoint_check();
   void wait_for_signal();
 
   uint64_t offset_load_address(uint64_t addr);
+  // offset addresses from DWARF info
+  uint64_t offset_dwarf_address(uint64_t addr);
   void initialise_load_address();
   void print_source(const std::string &file_name, unsigned line,
                     unsigned n_lines_context = 2);
