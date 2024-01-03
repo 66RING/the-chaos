@@ -55,6 +55,7 @@ public:
   void initialise_load_address();
   void print_source(const std::string &file_name, unsigned line,
                     unsigned n_lines_context = 2);
+  void print_backtrace();
 
   void handle_sigtrap(siginfo_t info);
   siginfo_t get_signal_info();

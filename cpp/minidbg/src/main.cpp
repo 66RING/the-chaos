@@ -179,9 +179,36 @@ void debugger::handle_command(const std::string &line) {
     for (auto&& s : syms) {
         std::cout << s.name << ' ' << to_string(s.type) << " 0x" << std::hex << s.addr << std::endl;
     }
+  } else if(is_prefix(command, "backtrace")) {
+    print_backtrace();
   } else {
     std::cerr << "Unknown command\n";
   }
+}
+
+void debugger::print_backtrace() {
+    // format print
+    auto output_frame = [frame_number = 0] (auto&& func) mutable {
+        std::cout << "frame #" << frame_number++ << ": 0x" << dwarf::at_low_pc(func)
+                  << ' ' << dwarf::at_name(func) << std::endl;
+    };
+
+    // print current frame by DWARF
+    auto current_func = get_function_from_pc(offset_load_address(get_pc()));
+    output_frame(current_func);
+
+    // get the frame pointer and return address for the current function. 
+    // The frame pointer is stored in the rbp register, and the return address is 8 bytes up the stack from the frame pointer.
+    auto frame_pointer = get_register_value(m_pid, reg::rbp);
+    auto return_address = read_memory(frame_pointer+8);
+
+    // scan frame until we reach the main function
+    while (dwarf::at_name(current_func) != "main") {
+        current_func = get_function_from_pc(offset_load_address(return_address));
+        output_frame(current_func);
+        frame_pointer = read_memory(frame_pointer);
+        return_address = read_memory(frame_pointer+8);
+    }
 }
 
 // loop through the sections of the ELF looking for symbol tables

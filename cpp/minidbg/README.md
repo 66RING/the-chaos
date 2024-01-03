@@ -311,6 +311,39 @@ Num:    Value          Size Type    Bind   Vis      Ndx Name
 66: 0000000000400558     0 FUNC    GLOBAL DEFAULT    9 _init
 ```
 
+## stack unwinding
+
+> 打印所有栈帧, aka backtrace
+
+函数的栈帧内存布局如下:
+
+```
+            High
+        |   ...   |
+        +---------+
+     +24|  Arg 1  |
+        +---------+
+     +16|  Arg 2  |
+        +---------+
+     + 8| Return  |
+        +---------+
+EBP+--> |Saved EBP|
+        +---------+
+     - 8|  Var 1  |
+        +---------+
+ESP+--> |  Var 2  |
+        +---------+
+        |   ...   |
+            Low
+```
+
+- backtrace
+    * 函数栈内存布局
+        + 栈帧的地址有ebp保存
+        + 而函数的返回地址保存在栈帧地址+8处
+    * 一直打印栈帧知道扫描到main函数的栈帧
+
+
 ## TODO
 
 - rewrite it in rust!!!!!!!
