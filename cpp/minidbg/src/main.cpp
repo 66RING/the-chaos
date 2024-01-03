@@ -32,6 +32,13 @@ bool is_prefix(const std::string &s, const std::string &of) {
   return std::equal(s.begin(), s.end(), of.begin());
 }
 
+// you can type c.cpp for a/b/c.cpp
+bool is_suffix(const std::string& s, const std::string& of) {
+    if (s.size() > of.size()) return false;
+    auto diff = of.size() - s.size();
+    return std::equal(s.begin(), s.end(), of.begin() + diff);
+}
+
 void debugger::run() {
   // Wait until the child process has finished launching.
   // When the traced process is launched, it will be sent a SIGTRAP signal,
@@ -123,9 +130,18 @@ void debugger::handle_command(const std::string &line) {
   if (is_prefix(command, "cont")) {
     continue_execution();
   } else if (is_prefix(command, "break")) {
-    std::string addr{args[1],
-                     2}; // naively assume that the user has written 0xADDRESS
-    set_breakpoint_at_address(std::stol(addr, 0, 16));
+    if (args[1][0] == '0' && args[1][1] == 'x') {
+      // 0x<hexadecimal> -> address breakpoint
+      std::string addr {args[1], 2};
+      set_breakpoint_at_address(std::stol(addr, 0, 16));
+    } else if (args[1].find(':') != std::string::npos) {
+      // <line>:<filename> -> line number breakpoint
+      auto file_and_line = split(args[1], ':');
+      set_breakpoint_at_source_line(file_and_line[0], std::stoi(file_and_line[1]));
+    } else {
+      // <anything else> -> function name breakpoint
+      set_breakpoint_at_function(args[1]);
+    }
   } else if (is_prefix(command, "register")) {
     if (is_prefix(args[1], "dump")) {
       dump_registers();
@@ -157,9 +173,67 @@ void debugger::handle_command(const std::string &line) {
     step_over();
   } else if(is_prefix(command, "finish")) {
     step_out();
+  } else if(is_prefix(command, "symbol")) {
+    // print symbol type
+    auto syms = lookup_symbol(args[1]);
+    for (auto&& s : syms) {
+        std::cout << s.name << ' ' << to_string(s.type) << " 0x" << std::hex << s.addr << std::endl;
+    }
   } else {
     std::cerr << "Unknown command\n";
   }
+}
+
+// loop through the sections of the ELF looking for symbol tables
+std::vector<symbol> debugger::lookup_symbol(const std::string& name) {
+    // collect any symbols found
+    std::vector<symbol> syms;
+
+    for (auto &sec : m_elf.sections()) {
+        if (sec.get_hdr().type != elf::sht::symtab && sec.get_hdr().type != elf::sht::dynsym)
+            continue;
+
+        for (auto sym : sec.as_symtab()) {
+            if (sym.get_name() == name) {
+                auto &d = sym.get_data();
+                syms.push_back(symbol{to_symbol_type(d.type()), sym.get_name(), d.value});
+            }
+        }
+    }
+
+    return syms;
+}
+
+void debugger::set_breakpoint_at_source_line(const std::string& file, unsigned line) {
+    for (const auto& cu : m_dwarf.compilation_units()) {
+        if (is_suffix(file, at_name(cu.root()))) {
+            const auto& lt = cu.get_line_table();
+
+            for (const auto& entry : lt) {
+                if (entry.is_stmt && entry.line == line) {
+                    set_breakpoint_at_address(offset_dwarf_address(entry.address));
+                    return;
+                }
+            }
+        }
+    }
+}
+
+// match against DW_AT_name and use 
+// DW_AT_low_pc (the start address of the function) 
+// to set our breakpoint
+void debugger::set_breakpoint_at_function(const std::string& name) {
+    for (const auto& cu : m_dwarf.compilation_units()) {
+        for (const auto& die : cu.root()) {
+            if (die.has(dwarf::DW_AT::name) && at_name(die) == name) {
+                auto low_pc = at_low_pc(die);
+                auto entry = get_line_entry_from_pc(low_pc);
+                // the DW_AT_low_pc for a function doesn’t point at the start of the user code for that function, it points to the start of the prologue
+                ++entry; //skip prologue
+                set_breakpoint_at_address(offset_dwarf_address(entry->address));
+            }
+        }
+    }
 }
 
 void debugger::step_over_breakpoint() {

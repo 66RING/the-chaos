@@ -259,6 +259,57 @@ LOCAL_SYMBOLS:
     * **这里的简单实现是: **给当前函数后面的每一行都设置断点, step后再移除
 
 
+## source level breakpoints
+
+- abs
+    * elf symbol table
+    * dwarf get function name
+
+- set at function
+    * 遍历die, 匹配函数名, 然后根据entry获取内存地址
+
+
+DWARF形如
+
+```
+.debug_line: line number info for a single cu
+Source lines (from CU-DIE at .debug_info offset 0x0000000b):
+
+NS new statement, BB new basic block, ET end of text sequence
+PE prologue end, EB epilogue begin
+IS=val ISA number, DI=val discriminator value
+<pc>        [lno,col] NS BB ET PE EB IS= DI= uri: "filepath"
+0x004004a7  [   1, 0] NS uri: "/path/to/a.hpp"
+0x004004ab  [   2, 0] NS
+0x004004b2  [   3, 0] NS
+0x004004b9  [   4, 0] NS
+0x004004c1  [   5, 0] NS
+0x004004c3  [   1, 0] NS uri: "/path/to/b.hpp"
+0x004004c7  [   2, 0] NS
+0x004004ce  [   3, 0] NS
+0x004004d5  [   4, 0] NS
+0x004004dd  [   5, 0] NS
+0x004004df  [   4, 0] NS uri: "/path/to/ab.cpp"
+0x004004e3  [   5, 0] NS
+0x004004e8  [   6, 0] NS
+0x004004ed  [   7, 0] NS
+0x004004f4  [   7, 0] NS ET
+```
+
+- symbol lookup
+    * 打印symbol的类型: file, func, notype...
+    * 扫描ELF的symbol table
+
+```
+Num:    Value          Size Type    Bind   Vis      Ndx Name
+ 0: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT  UND
+ 1: 0000000000400238     0 SECTION LOCAL  DEFAULT    1
+...
+63: 0000000000601030     0 NOTYPE  GLOBAL DEFAULT   22 _end
+64: 0000000000601028     0 NOTYPE  GLOBAL DEFAULT   21 _edata
+65: 0000000000400670    44 FUNC    GLOBAL DEFAULT   10 main
+66: 0000000000400558     0 FUNC    GLOBAL DEFAULT    9 _init
+```
 
 ## TODO
 

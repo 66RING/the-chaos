@@ -11,6 +11,7 @@
 
 #include "breakpoint.hpp"
 #include "register.hpp"
+#include "symbol.hpp"
 
 #include "dwarf/dwarf++.hh"
 #include "elf/elf++.hh"
@@ -29,6 +30,8 @@ public:
   void continue_execution();
   void handle_command(const std::string &line);
   void set_breakpoint_at_address(std::intptr_t addr);
+  void set_breakpoint_at_function(const std::string& name);
+  void set_breakpoint_at_source_line(const std::string& file, unsigned line);
   void remove_breakpoint(std::intptr_t addr);
   void dump_registers();
   uint64_t read_memory(uint64_t address);
@@ -43,6 +46,8 @@ public:
   void single_step_instruction();
   void single_step_instruction_with_breakpoint_check();
   void wait_for_signal();
+  // loop through the sections of the ELF looking for symbol tables
+  std::vector<symbol> lookup_symbol(const std::string& name);
 
   uint64_t offset_load_address(uint64_t addr);
   // offset addresses from DWARF info
@@ -64,5 +69,6 @@ private:
   elf::elf m_elf;
   uint64_t m_load_address;
 };
+
 
 #endif // !__DEBUGGER_HPP
