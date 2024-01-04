@@ -343,6 +343,14 @@ ESP+--> |  Var 2  |
         + 而函数的返回地址保存在栈帧地址+8处
     * 一直打印栈帧知道扫描到main函数的栈帧
 
+## handling variables
+
+https://blog.tartanllama.xyz/writing-a-linux-debugger-variables/
+
+- 更多的DIE API
+- 扫描当前函数内的variable, 分类讨论(指针变量寄存器)打印
+
+
 
 ## TODO
 

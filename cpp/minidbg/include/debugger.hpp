@@ -12,6 +12,7 @@
 #include "breakpoint.hpp"
 #include "register.hpp"
 #include "symbol.hpp"
+#include "context.hpp"
 
 #include "dwarf/dwarf++.hh"
 #include "elf/elf++.hh"
@@ -48,6 +49,7 @@ public:
   void wait_for_signal();
   // loop through the sections of the ELF looking for symbol tables
   std::vector<symbol> lookup_symbol(const std::string& name);
+  void read_variables();
 
   uint64_t offset_load_address(uint64_t addr);
   // offset addresses from DWARF info

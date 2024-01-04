@@ -181,9 +181,54 @@ void debugger::handle_command(const std::string &line) {
     }
   } else if(is_prefix(command, "backtrace")) {
     print_backtrace();
+  } else if(is_prefix(command, "variables")) {
+    read_variables();
   } else {
     std::cerr << "Unknown command\n";
   }
+}
+
+void debugger::read_variables() {
+    using namespace dwarf;
+
+    // get current function
+    auto func = get_function_from_pc(get_offset_pc());
+
+    // loop through the entries in current function, looking for variables
+    for (const auto& die : func) {
+        if (die.tag == DW_TAG::variable) {
+            // get the location information by looking up the DW_AT_location entry in the DIE
+            auto loc_val = die[DW_AT::location];
+
+            // only support exprlocs for now
+            if (loc_val.get_type() == value::type::exprloc) {
+                ptrace_expr_context context {m_pid};
+                auto result = loc_val.as_exprloc().evaluate(&context);
+
+                // read the contents of the variable. 
+                // It could be in memory or a register, so we’ll handle both cases
+                switch (result.location_type) {
+                case expr_result::type::address:
+                {
+                    auto value = read_memory(result.value);
+                    std::cout << at_name(die) << " (0x" << std::hex << result.value << ") = " 
+                              << value << std::endl;
+                }
+
+                case expr_result::type::reg:
+                {
+                    auto value = get_register_value_from_dwarf_register(m_pid, result.value);
+                    std::cout << at_name(die) << " (reg " << result.value << ") = "
+                              << value << std::endl;
+                    break;
+                }
+
+                default:
+                    throw std::runtime_error{"Unhandled variable location"};
+                }
+            } 
+        }
+    }
 }
 
 void debugger::print_backtrace() {
