@@ -4,6 +4,20 @@ https://zhuanlan.zhihu.com/p/467650462
 
 ## roadmap
 
+> 搞清楚数据是怎么在worker, server, postoffice, van, scheduler中流动就行
+
+- 数据流动
+    * **只有scheduler会处理控制指令**, 然后通过Send直接发送回去。而在做数据转发的时候则是通过worker/server的Customer代理接收
+    * scheduler负责更新server和worker的sender列表使得他们可以直接相互通信
+    * abs
+        + 每个worker和server都有两个线程一个负责发送一个负责接收，其中负责接收的线程叫做customer
+        + 每个worker和server都有自己的一个邮局，里面与其有连接的节点的id
+        + worker/server加入到系统会向scheduler发送一个控制信号`ADD_NODE`，scheduler收到后就会广播给系统的其他节点，让他们将新加入的节点添加到自己的通讯录中
+- Q: scheduler怎么建立自己的sender的? 即发送给其他节点的入口
+    * A: scheduler也是同样的van循环, 然后会收到`ADD_NODE`进入`ProcessAddNodeCommandAtScheduler`，从而建立senders map
+- Q: scheduler怎么向worker的customer发送消息? customer记录是什么时候建立的?
+    * A: scheduler不转发, 它只是管理布局信息，即有哪些worker和server连接到了系统!
+
 - Postoffice
     * customer list, node list
     * Manage
@@ -11,7 +25,29 @@ https://zhuanlan.zhihu.com/p/467650462
     * Start
     * 增删查customer
 - van
-    * zmq van
+    * zmq van: zmq是一个消息队列库
+    * zmqvan:Start() -> Van::Start()
+        + 解析ip:port, 解析当前node信息 
+        + NOTE: 获取scheduler信息: ip等 NOTE
+        + 只用zmq API绑定端口
+        + 连接到scheduler, zmq API连接, **创建向scheduler发送用的sender**
+        + 启动receiver thread做Van::Receiving
+    * Send -> SendMsg(zmq_van.h)
+        + 填充数据包元信息: 消息类型(pull/push), 请求还是回复等
+        + 发送元信息
+            + `zmq_msg_init_data`序列化?
+            + `zmq_msg_send`发送
+        + 发送数据信息
+            + `msg.data`
+            + `zmq_msg_init_data`序列化?
+            + `zmq_msg_send`发送
+    * Receiving: 一个接收+处理循环
+        + TODO:
+        + 数据接收: RecvMsg, 与Send对应
+            + i=0时解析发送者id
+            + i=1时处理meta data
+            + else 处理消息数据
+        + 数据处理:
 - customer
     * worker和server都可以雇佣customer取邮局取消息, customer是邮局的customer
 - worker
