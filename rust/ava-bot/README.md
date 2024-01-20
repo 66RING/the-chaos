@@ -15,8 +15,13 @@
     * mpsc
     * htmx sse
     * sse
+    * tailwindcss
+        + TODO
+        + class描述了一些东西
+        + 写css更方便
+    * font awesome
     
-## 1. basic
+## basic
 
 ### crate
 
@@ -29,5 +34,19 @@
 
 - mkcert, 制作本地https证书
 - watchexec, 热更新
+
+## 处理语音输入
+
+- TODO
+- 浏览器api
+- alpine.js
+    * x-data: 数据绑定?
+- css
+
+- http请求处理
+    * 解析表单数据
+
+
+
 
 

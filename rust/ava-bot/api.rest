@@ -1,5 +1,14 @@
+https://127.0.0.1:8080
+GET /
+
 http://localhost:8080
 GET /
 
-http://ava.ai:8080
+https://ava.ai:8080
+--cacert ./.certs/cert.pem
 GET /
+
+https://ava.ai:8080
+--cacert ./.certs/cert.pem
+Content-Type: multipart/form-data
+POST /assistant

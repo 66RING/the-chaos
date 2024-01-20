@@ -2,7 +2,7 @@ run: build-css
 	@RUST_LOG=info cargo run
 
 watch:
-	@watchexec -e rs,js,css,j2 --ignore public -- make run
+	@watchexec --restart --exts rs,js,css,j2 --ignore public -- make run
 
 build-css:
 	@echo "Building CSS..."

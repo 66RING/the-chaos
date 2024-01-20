@@ -33,18 +33,17 @@ async fn main() -> Result<()> {
     let app = Router::new()
         .route("/", get(index_page))
         .route("/chats", get(chats_handler))
+        .route("/assistant", post(assistant_handler))
         // Serve static file.
         .nest_service("/public", ServeDir::new("./public"))
         .with_state(state);
 
     let addr = format!("0.0.0.0:{}", args.port);
     info!("Listening on {}", addr);
-    // // TODO:
-    // let cert = std::fs::read(format!("{}/cert.pem", args.cert))?;
-    // let key = std::fs::read(format!("{}/key.pem", args.cert))?;
-    // let config = RustlsConfig::from_pem(cert, key).await?;
-    // axum_server::bind_rustls(addr.parse()?, config)
-    axum::Server::bind(&addr.parse()?)
+    let cert = std::fs::read(format!("{}/cert.pem", args.cert))?;
+    let key = std::fs::read(format!("{}/key.pem", args.cert))?;
+    let config = RustlsConfig::from_pem(cert, key).await?;
+    axum_server::bind_rustls(addr.parse()?, config)
         .serve(app.into_make_service())
         .await?;
 
